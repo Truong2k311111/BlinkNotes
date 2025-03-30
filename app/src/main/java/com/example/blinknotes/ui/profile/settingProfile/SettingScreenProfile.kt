@@ -74,90 +74,81 @@ import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingScreenProfile( navController: NavController,
-) {
+fun SettingScreenProfile(navController: NavController) {
     val settingsList = listOf(
         SettingItem("Tài khoản", 2, listOf("Tài khoản", "Quyền riêng tư"), listOf(R.drawable.account, R.drawable.lock), R.drawable.icon_arrow_right),
         SettingItem("Nội dung & Hiển thị", 3, listOf("Thông Báo", "Thời gian sử dụng màn hình","Gia đình Thông minh"), listOf(R.drawable.bell, R.drawable.timer_sand,R.drawable.home_heart), R.drawable.icon_arrow_right),
         SettingItem("Bộ nhớ đệm & Dữ liệu di động", 1, listOf("Giải phóng dung lượng"), listOf(R.drawable.trash_can), R.drawable.icon_arrow_right),
         SettingItem("Hỗ trợ & Giới thiệu", 3, listOf("Báo cáo vấn đề", "Hỗ trợ","Điều khoản và Đhính sách"), listOf(R.drawable.flag_variant, R.drawable.comment_question,R.drawable.information), R.drawable.icon_arrow_right),
         SettingItem("Đăng nhập", 1, listOf("Đăng xuất",), listOf(R.drawable.logout), R.drawable.icon_arrow_right),
-
-        )
+    )
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
-
-    var selectedUploadImage by remember { mutableStateOf<Uri?>(null) }
-
     val context = LocalContext.current
-    val launcher =
-        rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri: Uri? ->
-            selectedUploadImage = uri
-        }
+
     fun signOut(context: Context, onSignOut: () -> Unit) {
         val auth = FirebaseAuth.getInstance()
-        val googleSignInClient =
-            GoogleSignIn.getClient(context, GoogleSignInOptions.DEFAULT_SIGN_IN)
+        val googleSignInClient = GoogleSignIn.getClient(context, GoogleSignInOptions.DEFAULT_SIGN_IN)
 
         auth.signOut() // Đăng xuất khỏi Firebase
         googleSignInClient.signOut().addOnCompleteListener {
             onSignOut() // Callback để cập nhật UI sau khi đăng xuất
         }
     }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-       topBar = {
-           MediumTopAppBar(
-               colors = TopAppBarDefaults.topAppBarColors(
-                   containerColor = colorResource(R.color.lightgray),
-                   titleContentColor = colorResource(R.color.black),
-               ),
-               title = {
-                   Text(
-                       "Cài đặt và quyền riêng tư",
-                       maxLines = 1,
-                       overflow = TextOverflow.Ellipsis,
-                       fontSize = 24.sp,
-                       fontFamily = FontFamily.SansSerif,
-                       fontWeight = FontWeight.Bold,
-                   )
-               },
-               navigationIcon = {
-                   Image(
-                       painter = painterResource(R.drawable.icon_back),
-                       contentDescription = "",
-                       modifier = Modifier
-                           .size(24.dp)
-                           .clickable (
-                               interactionSource = remember { MutableInteractionSource() },
-                               indication = null
-                           ){
-                               navController.popBackStack()
-                           }
-                   )
-               },
-               actions = {
-
-               },
-               scrollBehavior = scrollBehavior
-           )
-       },
+        topBar = {
+            MediumTopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colorResource(R.color.lightgray),
+                    titleContentColor = colorResource(R.color.black),
+                ),
+                title = {
+                    Text(
+                        "Cài đặt và quyền riêng tư",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 24.sp,
+                        fontFamily = FontFamily.SansSerif,
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
+                navigationIcon = {
+                    Image(
+                        painter = painterResource(R.drawable.icon_back),
+                        contentDescription = "",
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                navController.navigate(Screens.ProfileScreen.route) {
+                                    popUpTo(Screens.SettingScreenProfile.route) { inclusive = true }
+                                }
+                            }
+                    )
+                },
+                actions = {},
+                scrollBehavior = scrollBehavior
+            )
+        },
     ) { paddingValues ->
-        LazyColumn (
+        LazyColumn(
             contentPadding = PaddingValues(bottom = 30.dp),
             modifier = Modifier
                 .padding(paddingValues = paddingValues)
                 .background(color = colorResource(R.color.lightgray))
-            .fillMaxSize(),
+                .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(settingsList) { setting ->
                 ItemsSetting(setting,
-                    onItemClick = { itemsLael ->
-                        when(itemsLael){
+                    onItemClick = { itemsLabel ->
+                        when(itemsLabel) {
                             "Đăng xuất" -> {
-                                signOut(context =context) {
-                                    Toast.makeText(context, "Đã đăng xuất!", Toast.LENGTH_SHORT)
-                                        .show()
+                                signOut(context = context) {
+                                    Toast.makeText(context, "Đã đăng xuất!", Toast.LENGTH_SHORT).show()
                                     navController.navigate(Screens.LoginScreen.route) {
                                         popUpTo(Graph.HOME) { inclusive = true }
                                     }
@@ -165,10 +156,8 @@ fun SettingScreenProfile( navController: NavController,
                             }
                         }
                     }
-
                 )
             }
-
         }
     }
 }

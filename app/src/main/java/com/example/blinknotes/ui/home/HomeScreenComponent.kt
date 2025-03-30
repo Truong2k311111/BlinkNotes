@@ -24,14 +24,19 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -73,23 +78,41 @@ import java.nio.charset.StandardCharsets
 import kotlin.random.Random
 import kotlin.text.get
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ImageListItem(
     navController: NavController,
     viewModel: ExploreScreenViewModel = viewModel(),
-   // userId:String
+    userId: String
 ) {
     val posts by viewModel.posts.collectAsState()
     val users by viewModel.users.collectAsState()
-
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val imageListState = rememberLazyStaggeredGridState()
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = { viewModel.refresh() }
+    )
+
+    // Handle pagination
+    LaunchedEffect(imageListState) {
+        snapshotFlow { imageListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .collect { lastVisibleIndex ->
+                if (lastVisibleIndex != null && lastVisibleIndex >= posts.size - 2 && !viewModel.isLoading) {
+                    viewModel.loadMorePosts()
+                }
+            }
+    }
+
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .pullRefresh(pullRefreshState),
         contentAlignment = Alignment.BottomCenter
     ) {
         LazyVerticalStaggeredGrid(
             state = imageListState,
-            flingBehavior = ScrollableDefaults.flingBehavior() ,
+            flingBehavior = ScrollableDefaults.flingBehavior(),
             columns = StaggeredGridCells.Fixed(2),
             verticalItemSpacing = 1.dp,
             contentPadding = PaddingValues(bottom = 100.dp),
@@ -103,33 +126,51 @@ fun ImageListItem(
                     }
                     val user = users[post.userId]
 
-
-                        ItemsFeed(
-                            imageLink = post.firstImageUrl,
-                            userName = user?.username ?: "Loading...",
-                            profileImage = user?.profileImage ?: "",
-                            numberHeart = 0,
-                            status = post.caption ,
-                            modifier = Modifier,
-                            onclick = {
-                                viewModel.getPostByPostId(post.id) { post ->
-                                    post?.let {
-                                        navController.navigate(Screens.DetaillScreen.route + "/${it.id}")
-                                    }
+                    ItemsFeed(
+                        imageLink = post.firstImageUrl,
+                        userName = user?.username ?: "Loading...",
+                        profileImage = user?.profileImage ?: "",
+                        numberHeart = 0,
+                        status = post.caption,
+                        modifier = Modifier,
+                        onclick = {
+                            viewModel.getPostByPostId(post.id) { post ->
+                                post?.let {
+                                    navController.navigate(Screens.DetaillScreen.route + "/${it.id}/${userId}")
                                 }
                             }
+                        }
+                    )
+                }
 
-                        )
+                // Show loading indicator at the bottom
+                item(span = StaggeredGridItemSpan.FullLine) {
+                    if (viewModel.isLoading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            LoadingAnimation(
+                                circleSize = 8.dp,
+                                circleColor = Color(0xFF005BEA),
+                                spaceBetween = 4.dp,
+                                travelDistance = 6.dp
+                            )
+                        }
                     }
-
-
+                }
             },
             modifier = Modifier
-
         )
 
+        PullRefreshIndicator(
+            refreshing = isRefreshing,
+            state = pullRefreshState,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
     }
-
 }
 @Composable
 fun ItemsFeed(

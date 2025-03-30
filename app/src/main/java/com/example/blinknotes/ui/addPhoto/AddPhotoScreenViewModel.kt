@@ -35,13 +35,12 @@ class AddPhotoScreenViewModel: ViewModel() {
         _selectedImages.value = _selectedImages.value+uris
     }
 
-    fun uploadImagesToFirebase( caption: String, content: String, context: Context, onSuccess: () -> Unit) {
+    fun uploadImagesToFirebase( caption: String, content: String ,context: Context, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
             try {
                 val userId = auth.currentUser?.uid ?: throw Exception("User not logged in")
                 val imageUrls = mutableListOf<String>()
-
                 for (imageUri in selectedImages.value) {
                     val fileRef = storageRef.child("uploads/${UUID.randomUUID()}.jpg")
                     fileRef.putFile(imageUri).await()
@@ -64,7 +63,7 @@ class AddPhotoScreenViewModel: ViewModel() {
         }
     }
 
-    private suspend fun addPost(userId: String, imageUrls: List<String>, caption: String, content: String) {
+    private suspend fun addPost(userId: String,imageUrls: List<String>, caption: String, content: String) {
         val newPostRef = db.collection("posts").document()
         val post = hashMapOf(
             "postId" to newPostRef.id,

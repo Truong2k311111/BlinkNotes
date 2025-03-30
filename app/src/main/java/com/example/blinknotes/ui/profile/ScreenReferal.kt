@@ -210,10 +210,10 @@ private fun isValidPhoneNumber(phoneNumber: String): String{
         "Số không hợp lệ"
     }
 }
-@Preview(showBackground = true)
-@Composable
-fun Preview1(){
-    //ItemsList(icon = R.drawable.logo_app, name = "Lê Nhựt Trường", numPhone = "0785790205")
-// ItemsDate(datedata = null, text = "tu", modifier = Modifier)
-    ListReferalScreen()
-}
+//@Preview(showBackground = true)
+//@Composable
+//fun Preview1(){
+//    //ItemsList(icon = R.drawable.logo_app, name = "Lê Nhựt Trường", numPhone = "0785790205")
+//// ItemsDate(datedata = null, text = "tu", modifier = Modifier)
+//    ListReferalScreen()
+//}

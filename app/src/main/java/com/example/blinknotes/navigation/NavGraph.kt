@@ -16,6 +16,7 @@ import com.example.blinknotes.ui.profile.ProfileScreen
 import com.example.blinknotes.ui.profile.settingProfile.SettingScreenProfile
 import com.example.blinknotes.ui.search.SearchScreen
 import com.example.blinknotes.ui.search.SearchScreenViewModelFactory
+import com.example.blinknotes.ui.profile.EditProfileImageScreen
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -26,10 +27,16 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
 
     navigation(
         route = Graph.HOME,
-        startDestination = Screens.HomeScreen.route
+        startDestination = Screens.HomeScreen.route,
     ) {
-        composable(route = Screens.HomeScreen.route) {
-            HomeScreen(navController = navController, viewmodel = viewModel )
+
+        composable(route = Screens.HomeScreen.route,
+       //     arguments = listOf(navArgument("userId") { type = NavType.StringType })
+
+
+        ) {backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            HomeScreen(navController = navController, viewmodel = viewModel)
         }
         composable(route = Screens.ProfileScreen.route) {
             ProfileScreen(navController = navController)
@@ -51,6 +58,26 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             AddPhotoScreen(navController = navController)
         }
 
+        composable(
+            route = Screens.EditProfileImageScreen.route,
+            arguments = listOf(
+                navArgument("currentImageUrl") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val currentImageUrl = backStackEntry.arguments?.getString("currentImageUrl") ?: ""
+            EditProfileImageScreen(
+                currentImageUrl = currentImageUrl,
+                onDismiss = { navController.navigateUp() },
+                onImageUpdated = { newImageUrl ->
+                    // Quay lại màn hình trước và truyền URL mới
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("updatedImageUrl", newImageUrl)
+                    navController.navigateUp()
+                }
+            )
+        }
+
         composable(route = Screens.SettingScreenProfile.route){
             SettingScreenProfile(navController = navController)
         }
@@ -63,12 +90,13 @@ fun NavGraphBuilder.detailsNavGraph(navController: NavHostController) {
         route = Graph.DETAILS,
         startDestination = Screens.DetaillScreen.route
     ) {
-        composable(route = Screens.DetaillScreen.route + "/{postId}") { backStackEntry ->
+        composable(route = Screens.DetaillScreen.route + "/{postId}/{userId}") { backStackEntry ->
             val postId = backStackEntry.arguments?.getString("postId") ?: ""
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
 
-            Log.d("Navigation", "Navigated to DetaillScreen with postId: $postId")
+            Log.d("Navigation", "Navigated to DetaillScreen with postId: $postId and userId: $userId")
 
-            DetaillScreen(navController = navController, postId = postId)
+            DetaillScreen(navController = navController, postId = postId, userId = userId)
         }
 
     }

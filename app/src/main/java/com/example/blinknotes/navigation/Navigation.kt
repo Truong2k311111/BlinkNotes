@@ -31,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -38,7 +39,9 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.wear.compose.material3.IconButton
 import com.example.blinknotes.R
 import com.example.blinknotes.ui.addPhoto.AddPhotoScreenViewModel
@@ -47,94 +50,92 @@ import com.example.blinknotes.ui.addPhoto.AddPhotoScreenViewModel
 data class NavigationItem(
     val icon: ImageVector,
     val iconOutline : ImageVector,
-    val route: String
+    val route: String,
 )
 
 @Composable
 fun BottomNavigationBar(navController: NavHostController, items: List<NavigationItem>, viewModel: AddPhotoScreenViewModel = viewModel()) {
     val context = LocalContext.current
-
-    val selected = remember {
-        mutableStateOf(Icons.Default.Home)
-    }
-//    val selectedImages = remember { mutableStateListOf<Uri>() }
-//    val imagePickerLauncher =
-//        rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-//            if (uris.isNotEmpty()) {
-//                selectedImages.addAll(uris)
-//                val imageUris = selectedImages.joinToString(",") { it.toString() }
-//                navController.navigate("${Screens.AddPhotoScreen.route}?imageUris=${Uri.encode(imageUris)}")
-//            }
-//        }
     val selectedImages by viewModel.selectedImages.collectAsState()
 
+    // Get current route to determine which icon should be filled
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    
     val imagePickerLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-            viewModel.addSelectedImages( uris)
+            viewModel.addSelectedImages(uris)
         }
-    Box (
+
+    Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
                 .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-                .fillMaxWidth()
-                    ,
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             items.forEachIndexed { index, item ->
                 if (index == 2) {
+                    // Custom plus button design
                     Box(
-                        modifier = Modifier.size(45.dp)
+                        modifier = Modifier
+                            .size(48.dp)
                             .background(
-                                color = Color.Blue,
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFF00C6FB),
+                                        Color(0xFF005BEA)
+                                    )
+                                ),
                                 shape = CircleShape
                             )
-                            .border(3.dp, Color.White, CircleShape)
-                            .shadow(8.dp, shape = CircleShape)
-                            .align(alignment = Alignment.Top),
+                            .border(2.dp, Color.White, CircleShape)
+                            .shadow(
+                                elevation = 8.dp,
+                                shape = CircleShape,
+                                spotColor = Color(0x40000000)
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                navController.navigate(Screens.AddPhotoScreen.route)
+                            },
                         contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = {
-                                       // imagePickerLauncher.launch("image/*")
-                                        navController.navigate(Screens.AddPhotoScreen.route)
-                                    }
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(R.drawable.plus),
-                                modifier = Modifier
-                                    .padding(2.dp)
-                                    .size(32.dp),
-                                contentDescription = null,
-                                alignment = Alignment.Center
-                            )
-                        }
+                        Icon(
+                            painter = painterResource(R.drawable.plus),
+                            contentDescription = "Add",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
-
-                }
-                IconButton(
-                    onClick = {
-                        selected.value = item.icon
-                        navController.navigate(item.route) {
-                            popUpTo(Screens.HomeScreen.route) { inclusive = false }
-                        }
-                    },
-                ) {
-                    Icon(
-                        imageVector = if (selected.value == item.icon) item.icon else item.iconOutline,
-                        contentDescription = null,
-                        modifier = Modifier.size(26.dp),
-                        tint = Color.Black
-
-                    )
+                } else {
+                    IconButton(
+                        onClick = {
+                            navController.navigate(item.route) {
+                                // Prevent multiple copies of the same destination
+                                launchSingleTop = true
+                                // Restore state when reselecting a previously selected item
+                                restoreState = true
+                                // Pop up to the start destination of the graph to
+                                // avoid building up a large stack of destinations
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                            }
+                        },
+                    ) {
+                        val isSelected = currentRoute == item.route
+                        Icon(
+                            imageVector = if (isSelected) item.icon else item.iconOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(26.dp),
+                            tint = if (isSelected) Color(0xFF005BEA) else Color.Black
+                        )
+                    }
                 }
             }
         }

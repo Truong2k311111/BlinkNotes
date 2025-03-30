@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.BottomAppBar
 import androidx.compose.material.Scaffold
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
@@ -48,7 +50,7 @@ val viewModel = HomeScreenViewModel()
     val bottomNavigationItems = listOf(
         NavigationItem(Icons.Filled.Home,Icons.Outlined.Home, Screens.HomeScreen.route),
         NavigationItem(Icons.Filled.Search,Icons.Outlined.Search,Screens.SearchScreen.route),
-       // NavigationItem(Icons.Filled.Add,Icons.Outlined.Add,Screens.AddPhotoScreen.route),
+        NavigationItem(Icons.Filled.Add,Icons.Outlined.Add,Screens.AddPhotoScreen.route),
         NavigationItem(Icons.Filled.Notifications,Icons.Outlined.Notifications, Screens.NotifyScreen.route),
         NavigationItem(Icons.Filled.Person,Icons.Outlined.Person, Screens.ProfileScreen.route),
     )

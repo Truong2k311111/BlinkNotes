@@ -74,6 +74,7 @@ import com.example.blinknotes.ui.Auth.Component.CustomButton
 import com.example.blinknotes.ui.Auth.Component.CustomTextField
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -104,6 +105,8 @@ fun LoginScreen(authViewModel: AuthViewModel, navController: NavController) {
         ContentLoginScreen(
             onclickLogin = { email, password ->
                 authViewModel.loginUser(email, password) { success, message ->
+                    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return@loginUser
+
                     if (success) {
                         navController.navigate(Graph.HOME) {
                             popUpTo(Graph.AUTHENTICATION) { inclusive = true }

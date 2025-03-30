@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,13 +94,10 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 @Composable
-fun HomeScreen( navController: NavHostController,
-                viewmodel  : HomeScreenViewModel
-
+fun HomeScreen(
+    navController: NavHostController,
+    viewmodel: HomeScreenViewModel,
 ) {
-
-//    val uiState by viewmodel.uiState.collectAsState()
-//    val listState = rememberLazyListState()
     var userSignedIn by remember { mutableStateOf(false) }
     val currentUser = FirebaseAuth.getInstance().currentUser
     userSignedIn = currentUser != null
@@ -112,40 +110,33 @@ fun HomeScreen( navController: NavHostController,
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
-        modifier = Modifier
-            .fillMaxWidth()
-
+        modifier = Modifier.fillMaxWidth()
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues = paddingValues)
         ) {
-            TabContent(pagerState = pagerState, scope = scope  ,
+            TabContent(
+                pagerState = pagerState,
+                scope = scope,
                 selectedTab = selectedTab,
                 onTabSelected = { tabIndex -> selectedTab = tabIndex },
-                onSearchClick = {
-
-                })
+                onSearchClick = {}
+            )
             if (userSignedIn) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),
                     ) { page ->
                         when (page) {
-                            0 -> ExploreScreen( navController = navController
-//                                onLoadMore = {
-//                                  //  viewmodel.loadMoreIfNeeded(currentIndex = uiState.listFeed.size - 1)
-//                                             },
-//                                navController =navController ,
-                              //  isLoading = uiState.isLoading
-
-                                )
-                          //  1 -> if (userSignedIn) FollowScreen(navController)
+                            0 -> ExploreScreen(
+                                navController = navController,
+                                userIdLogin = currentUser!!.uid
+                            )
                         }
                     }
                     Box(
@@ -168,65 +159,61 @@ fun HomeScreen( navController: NavHostController,
     }
 }
 
-
-
 @Composable
 fun ExploreScreen(
     navController: NavController,
-    ){
+    userIdLogin: String,
+    viewModel: ExploreScreenViewModel = viewModel()
+) {
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val gridState = rememberLazyStaggeredGridState()
+
+    // Handle pull-to-refresh
+    LaunchedEffect(gridState) {
+        snapshotFlow { 
+            gridState.firstVisibleItemIndex == 0 && 
+            gridState.firstVisibleItemScrollOffset < -100 
+        }.collect { shouldRefresh ->
+            if (shouldRefresh && !isRefreshing) {
+                viewModel.refresh()
+            }
+        }
+    }
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier
-                    .fillMaxSize()
-        ){
+            modifier = Modifier.fillMaxSize()
+        ) {
             ImageListItem(
-                navController = navController
-
+                navController = navController,
+                userId = userIdLogin,
+                viewModel = viewModel
             )
+
+            // Show refresh indicator at the top
+            if (isRefreshing) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LoadingAnimation(
+                        circleSize = 8.dp,
+                        circleColor = Color(0xFF005BEA),
+                        spaceBetween = 4.dp,
+                        travelDistance = 6.dp
+                    )
+                }
+            }
         }
     }
 }
 
-
-
-//@Composable
-//fun FollowScreen(
-//    navController: NavController,
-//    listFollow: List<DataImage>
-//    ) {
-//    val snackbarHostState = remember { SnackbarHostState() }
-//    val coroutineScope = rememberCoroutineScope()
-//    Column(
-//        modifier = Modifier
-//            .fillMaxWidth(),
-//        verticalArrangement = Arrangement.Center,
-//        horizontalAlignment = Alignment.CenterHorizontally
-//    ) {
-//
-//        if (listFollow.isEmpty()) {
-//            Text("No images found")
-//        } else {
-//            ImageListItemFolow(imageUrl = listFollow , onClick = { dataImage ->
-//
-//                val encodedUrl =
-//                    URLEncoder.encode(dataImage.img_url, StandardCharsets.UTF_8.toString())
-//                navController.navigate("detail/$encodedUrl") {
-//                    launchSingleTop = true
-//
-//                }
-//                Log.d("Navigate", "Navigating to: detail/$encodedUrl")
-//
-//            })
-//        }
-//    }
-//}
-//
 @Composable
 fun TabContent(pagerState: PagerState, scope: CoroutineScope, onSearchClick: () -> Unit,  selectedTab: Int,
                onTabSelected: (Int) -> Unit,){

@@ -1,6 +1,7 @@
 package com.example.blinknotes.data.helper
 
 import android.util.Log
+import com.example.blinknotes.ui.detaill.Comment
 import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.ui.home.User
 import com.google.firebase.firestore.FirebaseFirestore
@@ -59,28 +60,15 @@ object FirestoreHelper {
     }
 
     // 5. Lấy danh sách bài viết
-    fun getPostsByUser(userId: String, onResult: (List<Map<String, Any>>) -> Unit) {
-        db.collection("posts").whereEqualTo("userId", userId)
+    fun getAllPosts(lastPost: Post? = null, callback: (List<Post>) -> Unit) {
+        // Lấy tất cả bài viết
+        FirebaseFirestore.getInstance().collection("posts")
             .get()
-            .addOnSuccessListener { result -> onResult(result.documents.mapNotNull { it.data }) }
-            .addOnFailureListener { e -> Log.e("Firestore", "Error getting posts: $e") }
-    }
-
-    fun getAllPosts(lastPost: Post?,callback: (List<Post>) -> Unit) {
-        var query = FirebaseFirestore.getInstance().collection("posts")
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            //.limit(pageSize.toLong())
-
-        // Nếu có bài viết cuối cùng, dùng nó làm điểm bắt đầu cho trang tiếp theo
-        lastPost?.let {
-            query = query.startAfter(it.createdAt)
-        }
-
-        query.get()
             .addOnSuccessListener { result ->
                 val postsList = result.documents.mapNotNull { doc ->
                     val id = doc.id
                     val userId = doc.getString("userId") ?: ""
+                    val userIdCmt = doc.getString("userIdCmt") ?: ""
                     val imageUrls = doc.get("imageUrls") as? List<String> ?: emptyList()
                     val firstImageUrl = imageUrls.firstOrNull() ?: ""
                     val caption = doc.getString("caption") ?: ""
@@ -91,38 +79,89 @@ object FirestoreHelper {
                     val visibility = doc.getString("visibility") ?: "public"
                     val tags = doc.get("tags") as? List<String> ?: emptyList()
 
-                    Post(id, userId, imageUrls, firstImageUrl, caption, content, createdAt, likesCount, commentsCount, visibility, tags)
+                    Post(id, userId, userIdCmt, imageUrls, firstImageUrl, caption, content, createdAt, likesCount, commentsCount, visibility, tags)
                 }
 
-                callback(postsList)
+                // Xáo trộn danh sách bài viết
+                val shuffledPosts = postsList.shuffled()
+                
+                // Nếu có lastPost, lọc ra các bài viết đã hiển thị
+                val filteredPosts = if (lastPost != null) {
+                    shuffledPosts.filter { it.id != lastPost.id }
+                } else {
+                    shuffledPosts
+                }
+
+                // Lấy 10 bài viết đầu tiên sau khi xáo trộn
+                callback(filteredPosts.take(10))
             }
             .addOnFailureListener { e ->
-                callback(emptyList()) // Trả về danh sách rỗng nếu có lỗi
+                callback(emptyList())
                 Log.e("Firestore", "Lỗi khi tải dữ liệu: ${e.message}")
             }
     }
 
-
     // 6. Thêm bình luận
-    fun addComment(postId: String, userId: String, content: String) {
-        val comment = mapOf(
+    fun addComment(postId: String, userId: String, content: String, parentCommentId: String? = null,  onComplete: (Boolean) -> Unit) {
+        val comment = hashMapOf(
             "postId" to postId,
             "userId" to userId,
             "content" to content,
             "createdAt" to System.currentTimeMillis(),
-            "likesCount" to 0
+            "likesCount" to 0,
+            "parentCommentId" to parentCommentId // Nếu là trả lời, lưu ID của comment cha
         )
+
+
         db.collection("comments").add(comment)
-            .addOnFailureListener { e -> Log.e("Firestore", "Error adding comment: $e") }
+            .addOnSuccessListener { documentReference ->
+                Log.d("Firestore", "Comment added with ID: ${documentReference.id}")
+                onComplete(true)
+            }
+            .addOnFailureListener { e ->
+                Log.e("Firestore", "Error adding comment: $e")
+                onComplete(false)
+            }
     }
 
     // 7. Lấy bình luận
-    fun getComments(postId: String, onResult: (List<Map<String, Any>>) -> Unit) {
-        db.collection("comments").whereEqualTo("postId", postId)
-            .get()
-            .addOnSuccessListener { result -> onResult(result.documents.mapNotNull { it.data }) }
-            .addOnFailureListener { e -> Log.e("Firestore", "Error getting comments: $e") }
-    }
+//    fun getComments(postId: String, onResult: (List<Comment>) -> Unit) {
+//        db.collection("comments")
+//            .whereEqualTo("postId", postId)
+//            .orderBy("createdAt", Query.Direction.DESCENDING) // Sắp xếp bình luận mới nhất lên trên
+//            .get()
+//            .addOnSuccessListener { result ->
+//                val comments = result.documents.mapNotNull { document ->
+//                    val data = document.data
+//                    data?.let {
+//                        Comment(
+//                            id = document.id,
+//                            postId = it["postId"] as String,
+//                            userId = it["userId"] as String,
+//                            content = it["content"] as String,
+//                            createdAt = it["createdAt"] as Long,
+//                            likesCount = it["likes"] as? Int ?: emptyList(),
+//                            parentCommentId = it["parentCommentId"] as? String
+//                        )
+//                    }
+//                }
+//                val groupedComments = comments.groupBy { it.parentCommentId }
+//                val topLevelComments = groupedComments[null] ?: emptyList()
+//
+//                val structuredComments = topLevelComments.map { parentComment ->
+//                    parentComment.copy(
+//                        replies = groupedComments[parentComment.id] ?: emptyList()
+//                    )
+//                }
+//
+//                onResult(structuredComments)
+//            }
+//            .addOnFailureListener { e ->
+//                Log.e("Firestore", "Error getting comments: $e")
+//                onResult(emptyList())
+//            }
+//    }
+
 
     // 8. Thích bài viết
     fun likePost(postId: String, userId: String) {
