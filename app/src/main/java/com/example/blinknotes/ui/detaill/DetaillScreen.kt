@@ -227,21 +227,21 @@ fun DetaillScreen(navController: NavController,
                         }
                     }
                 } else {
-                    items(comments) { comment ->
-                        LaunchedEffect(comment.userId) {
-                            if (!users.containsKey(comment.userId)) {
-                                viewModel.fetchUser(comment.userId)
-                            }
+                items(comments) { comment ->
+                    LaunchedEffect(comment.userId) {
+                        if (!users.containsKey(comment.userId)) {
+                            viewModel.fetchUser(comment.userId)
                         }
-                        val user = users[comment.userId]
-                        var time = viewModel.getTimeAgo(comment.createdAt)
-                        CommentItems(
-                            contentComment = comment.content,
-                            time = time,
-                            avatarUserComment = user?.profileImage ?: "",
-                            isAuthor = comment.isAuthor,
-                            userName = user?.username ?: "",
-                            userId = userId,
+                    }
+                    val user = users[comment.userId]
+                    var time = viewModel.getTimeAgo(comment.createdAt)
+                    CommentItems(
+                        contentComment = comment.content,
+                        time = time,
+                        avatarUserComment = user?.profileImage ?: "",
+                        isAuthor = comment.isAuthor,
+                        userName = user?.username ?: "",
+                        userId = userId,
                             postId = postId,
                             parentCommentId = null,
                             replies = comment.replies,
@@ -381,7 +381,7 @@ fun CommentItems(
     val keyboardController = LocalSoftwareKeyboardController.current
 
     val comment = remember { mutableStateOf("") }
-    
+
     // Lấy thông tin user hiện tại
     val currentUser = FirebaseAuth.getInstance().currentUser
     val currentUserId = currentUser?.uid ?: ""
@@ -470,11 +470,11 @@ fun CommentItems(
                         )
                     } else {
                         Log.d("CommentItems", "Not displaying reply info: isReply=$isReply, parentUserInfo=${parentUserInfo != null}")
-                        Text(
-                            text = userName,
-                            fontSize = 13.sp,
-                            color = colorResource(R.color.bgr)
-                        )
+                    Text(
+                        text = userName,
+                        fontSize = 13.sp,
+                        color = colorResource(R.color.bgr)
+                    )
                     }
                 }
                 Text(
@@ -523,7 +523,7 @@ fun CommentItems(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.padding(end = 14.dp)
             ) {
-                IconButton(
+            IconButton(
                     onClick = { 
                         if (commentId.isNotEmpty() && currentUserId.isNotEmpty()) {
                             viewModel.toggleCommentLike(commentId, currentUserId)
@@ -575,7 +575,7 @@ fun CommentItems(
                     )
                 }
             }
-        }
+    }
         if (isCommenting) {
             LaunchedEffect(Unit) {
                 focusRequester.requestFocus()
@@ -746,38 +746,38 @@ fun BottomBarDetail(
     val keyboardController = LocalSoftwareKeyboardController.current
     val viewModel: DetailScreenViewModel = viewModel()
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(8.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .padding(8.dp)
             .imePadding()
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextField(
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
                 value = comment,
                 onValueChange = { comment = it },
-                placeholder = { Text("Viết bình luận...",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                ) },
-                modifier = Modifier
-                    .focusRequester(focusRequester)
-                    .border(BorderStroke(2.dp, Color.Gray), shape = RoundedCornerShape(24.dp))
-                    .weight(1f),
-                singleLine = true,
-                shape = RoundedCornerShape(24.dp),
-                colors = TextFieldDefaults.outlinedTextFieldColors(
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    containerColor = Color.White
-                ),
-            )
-            IconButton(
-                onClick = {
+                        placeholder = { Text("Viết bình luận...",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                            ) },
+                        modifier = Modifier
+                            .focusRequester(focusRequester)
+                            .border(BorderStroke(2.dp, Color.Gray), shape = RoundedCornerShape(24.dp))
+                            .weight(1f),
+                                    singleLine = true,
+            shape = RoundedCornerShape(24.dp),
+            colors = TextFieldDefaults.outlinedTextFieldColors(
+            focusedBorderColor = Color.Transparent,
+            unfocusedBorderColor = Color.Transparent,
+            containerColor = Color.White
+        ),
+                    )
+                    IconButton(
+                        onClick = {
                     if (comment.isNotBlank()) {
                         // Nếu parentCommentId là userId, nghĩa là đang tạo comment mới
                         val actualParentId = if (parentCommentId == userId) null else parentCommentId

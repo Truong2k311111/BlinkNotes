@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.google.firebase.firestore.FieldValue
 
 
 data class Post(
@@ -41,7 +42,10 @@ data class User(
     val profileImage: String = "",
     val followers: List<String> = emptyList(),
     val following: List<String> = emptyList(),
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val blinkNotesId : String = "",
+    val bio : String = "",
+    val coverImage: String = ""
 )
 
 class ExploreScreenViewModel : ViewModel() {
@@ -57,6 +61,9 @@ class ExploreScreenViewModel : ViewModel() {
     private val _userCache = mutableMapOf<String, User?>()
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
+    private val _postLikeStatus = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val postLikeStatus: StateFlow<Map<String, Boolean>> = _postLikeStatus
 
     private var lastVisiblePost: Post? = null
     internal var isLoading = false
@@ -117,8 +124,10 @@ class ExploreScreenViewModel : ViewModel() {
                 delay(800L) // Reduced delay for better UX
                 getAllPosts(lastVisiblePost) { newPosts ->
                     if (newPosts.isNotEmpty()) {
+                        // Filter out non-public posts
+                        val publicPosts = newPosts.filter { it.visibility == "public" }
                         // Lọc ra các bài viết đã được tải trước đó
-                        val uniqueNewPosts = newPosts.filter { post ->
+                        val uniqueNewPosts = publicPosts.filter { post ->
                             !loadedPostIds.contains(post.id)
                         }
 
@@ -180,63 +189,50 @@ class ExploreScreenViewModel : ViewModel() {
             }
         }
     }
-//
-//    fun checkPostLikeStatus(postId: String, userId: String, callback: (Boolean) -> Unit) {
-//        FirebaseFirestore.getInstance().collection("likes")
-//            .whereEqualTo("postId", postId)
-//            .whereEqualTo("userId", userId)
-//            .get()
-//            .addOnSuccessListener { result ->
-//                callback(!result.isEmpty)
-//            }
-//            .addOnFailureListener { e ->
-//                Log.e("Firestore", "Error checking like status: ${e.message}")
-//                callback(false)
-//            }
-//    }
-//
-//    fun togglePostLike(postId: String, userId: String) {
-//        FirebaseFirestore.getInstance().collection("likes")
-//            .whereEqualTo("postId", postId)
-//            .whereEqualTo("userId", userId)
-//            .get()
-//            .addOnSuccessListener { result ->
-//                if (result.isEmpty) {
-//                    // Nếu chưa like, thêm like mới
-//                    FirebaseFirestore.getInstance().collection("likes")
-//                        .add(mapOf(
-//                            "postId" to postId,
-//                            "userId" to userId,
-//                            "createdAt" to System.currentTimeMillis()
-//                        ))
-//                        .addOnSuccessListener {
-//                            // Cập nhật UI
-//                            _posts.value = _posts.value.map { post ->
-//                                if (post.id == postId) {
-//                                    post.copy(likes = post.likes + userId)
-//                                } else {
-//                                    post
-//                                }
-//                            }
-//                        }
-//                } else {
-//                    // Nếu đã like, xóa like
-//                    result.documents.forEach { doc ->
-//                        FirebaseFirestore.getInstance().collection("likes")
-//                            .document(doc.id)
-//                            .delete()
-//                            .addOnSuccessListener {
-//                                // Cập nhật UI
-//                                _posts.value = _posts.value.map { post ->
-//                                    if (post.id == postId) {
-//                                        post.copy(likes = post.likes - userId)
-//                                    } else {
-//                                        post
-//                                    }
-//                                }
-//                            }
-//                    }
-//                }
-//            }
-//    }
+    fun checkPostLikeStatus(postId: String, userId: String) {
+        viewModelScope.launch {
+            try {
+                FirebaseFirestore.getInstance()
+                    .collection("likes")
+                    .document("${userId}_${postId}")
+                    .get()
+                    .addOnSuccessListener { document ->
+                        _postLikeStatus.value = _postLikeStatus.value + (postId to document.exists())
+                    }
+            } catch (e: Exception) {
+                Log.e("ExploreScreenViewModel", "Error checking like status", e)
+            }
+        }
+    }
+    fun togglePostLike(postId: String, userId: String) {
+        viewModelScope.launch {
+            try {
+                val postRef = FirebaseFirestore.getInstance().collection("posts").document(postId)
+                val likeRef = FirebaseFirestore.getInstance()
+                    .collection("likes")
+                    .document("${userId}_${postId}")
+
+                // Kiểm tra trạng thái like hiện tại
+                likeRef.get().addOnSuccessListener { document ->
+                    if (document.exists()) {
+                        // Nếu đã like thì unlike
+                        likeRef.delete()
+                        postRef.update("likesCount", FieldValue.increment(-1))
+                        _postLikeStatus.value = _postLikeStatus.value + (postId to false)
+                    } else {
+                        // Nếu chưa like thì like
+                        likeRef.set(mapOf(
+                            "userId" to userId,
+                            "postId" to postId,
+                            "timestamp" to FieldValue.serverTimestamp()
+                        ))
+                        postRef.update("likesCount", FieldValue.increment(1))
+                        _postLikeStatus.value = _postLikeStatus.value + (postId to true)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ExploreScreenViewModel", "Error toggling like", e)
+            }
+        }
+    }
 }

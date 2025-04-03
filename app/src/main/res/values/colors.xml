@@ -37,7 +37,7 @@
     <color name="antiquewhite">#FAEBD7FF</color>
     <color name="aquamarine">#7FFFD4FF</color>
     <color name="azure">#2EFDC9</color>
-    <color name="beige">#F5F5DCFF</color>
+    <color name="beige">#F5E4E4E6</color>
     <color name="bisque">#FFE4C4FF</color>
     <color name="blanchedalmond">#FFEBCDFF</color>
     <color name="blueviolet">#C814DFFF</color>
@@ -72,7 +72,7 @@
     <color name="firebrick">#B22222FF</color>
     <color name="floralwhite">#FFFAF0FF</color>
     <color name="forestgreen">#228B22FF</color>
-    <color name="gainsboro">#DCDCDCFF</color>
+    <color name="gainsboro">#DCE4E4ED</color>
     <color name="ghostwhite">#F8F8FFFF</color>
     <color name="greenyellow">#ADFF2FFF</color>
     <color name="honeydew">#F0FFF0FF</color>
@@ -92,7 +92,7 @@
     <color name="lightpink">#FFB6C1FF</color>
     <color name="lightsalmon">#FFA07AFF</color>
     <color name="lightseagreen">#20B2AAFF</color>
-    <color name="lightskyblue">#87CEFAFF</color>
+    <color name="lightskyblue">#87E9F0F1</color>
     <color name="lightslategray">#778899FF</color>
     <color name="lightsteelblue">#B0C4DEFF</color>
     <color name="lightyellow">#FFFFE0FF</color>

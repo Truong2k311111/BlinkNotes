@@ -1,4 +1,5 @@
 import android.util.Log
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -17,6 +18,8 @@ import com.example.blinknotes.ui.profile.settingProfile.SettingScreenProfile
 import com.example.blinknotes.ui.search.SearchScreen
 import com.example.blinknotes.ui.search.SearchScreenViewModelFactory
 import com.example.blinknotes.ui.profile.EditProfileImageScreen
+import com.example.blinknotes.ui.profile.EditCoverImageScreen
+import com.example.blinknotes.ui.profile.ViewCoverImageScreen
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -82,6 +85,30 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             SettingScreenProfile(navController = navController)
         }
 
+        composable("edit_cover_image_screen/{currentCoverUrl}") { backStackEntry ->
+            val currentCoverUrl = backStackEntry.arguments?.getString("currentCoverUrl") ?: ""
+            EditCoverImageScreen(
+                navController = navController,
+                viewModel = viewModel(),
+                currentCoverUrl = currentCoverUrl
+            )
+        }
+
+        composable(
+            route = Screens.ViewCoverImageScreen.route,
+            arguments = listOf(
+                navArgument("imageUrl") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val imageUrl = backStackEntry.arguments?.getString("imageUrl") ?: ""
+            Log.d("NavGraph", "Encoded image URL from arguments: $imageUrl")
+          //  val decodedUrl = URLDecoder.decode(imageUrl, StandardCharsets.UTF_8.toString())
+         //   Log.d("NavGraph", "Decoded image URL: $decodedUrl")
+            ViewCoverImageScreen(
+                navController = navController,
+                imageUrl = imageUrl
+            )
+        }
 
     }
 }

@@ -19,5 +19,6 @@ sealed class Screens(val route: String) {
             "phone_auth_screen/$email/$userName/$password/$confirmPassword"
     }
     object EditPhotoScreen: Screens("edit_photo_screen")
-
+    object EditCoverImageScreen : Screens("edit_cover_image_screen/{currentCoverUrl}")
+    object ViewCoverImageScreen : Screens("view_cover_image_screen/{imageUrl}")
 }

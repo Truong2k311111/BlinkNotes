@@ -123,15 +123,22 @@ fun ImageListItem(
                         if (!users.containsKey(post.userId)) {
                             viewModel.fetchUser(post.userId)
                         }
+                        viewModel.checkPostLikeStatus(post.id, userId)
                     }
                     val user = users[post.userId]
+                    val isFavorite by remember(post.id) {
+                        derivedStateOf {
+                            viewModel.postLikeStatus.value[post.id] ?: false
+                        }
+                    }
 
                     ItemsFeed(
                         imageLink = post.firstImageUrl,
                         userName = user?.username ?: "Loading...",
                         profileImage = user?.profileImage ?: "",
-                        numberHeart = 0,
+                        numberHeart = post.likesCount,
                         status = post.caption,
+                        isFavorite = isFavorite,
                         modifier = Modifier,
                         onclick = {
                             viewModel.getPostByPostId(post.id) { post ->
@@ -139,6 +146,9 @@ fun ImageListItem(
                                     navController.navigate(Screens.DetaillScreen.route + "/${it.id}/${userId}")
                                 }
                             }
+                        },
+                        onLikeClick = { // Handle like click
+                            viewModel.togglePostLike(post.id, userId)
                         }
                     )
                 }
@@ -174,18 +184,27 @@ fun ImageListItem(
 }
 @Composable
 fun ItemsFeed(
-    imageLink :String?,
+    imageLink: String?,
     numberHeart: Int?,
     status: String?,
     profileImage: String,
-    userName:String,
+    userName: String,
+    isFavorite: Boolean,
     modifier: Modifier = Modifier,
-    onclick: ()-> Unit
-){
+    onclick: () -> Unit,
+    onLikeClick: () -> Unit
+) {
     var imageSize by remember { mutableStateOf(Size.Zero) }
-    var isFavorite by remember { mutableStateOf(false) }
+    var isFavoriteState by remember { mutableStateOf(isFavorite) }
+    var currentLikes by remember { mutableStateOf(numberHeart ?: 0) }
     val interactionSource = remember { MutableInteractionSource() }
-   val formattedTextnumberHeart = formatNumberHeart(numberHeart)
+
+    // Cập nhật isFavoriteState và currentLikes khi prop thay đổi
+    LaunchedEffect(isFavorite, numberHeart) {
+        isFavoriteState = isFavorite
+        currentLikes = numberHeart ?: 0
+    }
+
     Box(
         modifier = Modifier
             .padding(2.dp)
@@ -194,7 +213,6 @@ fun ItemsFeed(
             .clickable {
                 onclick()
             }
-
     ) {
         Column(
             modifier = modifier
@@ -211,11 +229,11 @@ fun ItemsFeed(
                     .fillMaxWidth()
                     .heightIn(max = 250.dp)
                     .clip(RoundedCornerShape(8.dp))
-                .onGloballyPositioned { layoutCoordinates ->
-                    val width = layoutCoordinates.size.width.toFloat()
-                    val height = layoutCoordinates.size.height.toFloat()
-                    imageSize = Size(width, height)
-                },
+                    .onGloballyPositioned { layoutCoordinates ->
+                        val width = layoutCoordinates.size.width.toFloat()
+                        val height = layoutCoordinates.size.height.toFloat()
+                        imageSize = Size(width, height)
+                    },
                 placeholder = painterResource(id = R.drawable.splash),
             )
             Text(
@@ -243,9 +261,7 @@ fun ItemsFeed(
                         .fillMaxWidth()
                         .weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
-
-
-                    ) {
+                ) {
                     AsyncImage(
                         model = profileImage,
                         contentScale = ContentScale.Crop,
@@ -272,10 +288,9 @@ fun ItemsFeed(
                         .weight(1f),
                     Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
-
-                    ) {
+                ) {
                     Text(
-                        text = formattedTextnumberHeart,
+                        text = formatNumberHeart(currentLikes),
                         fontSize = 14.sp,
                         color = Color.DarkGray,
                         modifier = Modifier
@@ -285,8 +300,8 @@ fun ItemsFeed(
                     )
 
                     Icon(
-                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        tint = if (isFavorite) Color.Red else Color.Gray,
+                        imageVector = if (isFavoriteState) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        tint = if (isFavoriteState) Color.Red else Color.Gray,
                         contentDescription = "Favorite",
                         modifier = Modifier
                             .size(20.dp)
@@ -294,16 +309,13 @@ fun ItemsFeed(
                                 interactionSource = interactionSource,
                                 indication = null
                             ) {
-
-                                isFavorite = !isFavorite
-
+                                isFavoriteState = !isFavoriteState
+                                currentLikes = if (isFavoriteState) currentLikes + 1 else currentLikes - 1
+                                onLikeClick()
                             }
                     )
                 }
-
-
             }
-
         }
     }
 }
@@ -432,3 +444,4 @@ fun formatNumberHeart(number: Int?): String {
     }
     return TODO("Provide the return value")
 }
+

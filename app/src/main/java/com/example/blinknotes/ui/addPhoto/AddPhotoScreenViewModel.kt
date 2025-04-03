@@ -35,7 +35,7 @@ class AddPhotoScreenViewModel: ViewModel() {
         _selectedImages.value = _selectedImages.value+uris
     }
 
-    fun uploadImagesToFirebase( caption: String, content: String ,context: Context, onSuccess: () -> Unit) {
+    fun uploadImagesToFirebase(caption: String, content: String, visibility: String, context: Context, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
             try {
@@ -48,7 +48,7 @@ class AddPhotoScreenViewModel: ViewModel() {
                     imageUrls.add(downloadUri)
                 }
 
-                addPost(userId, imageUrls, caption, content)
+                addPost(userId, imageUrls, caption, content, visibility)
                 viewModelScope.launch(Dispatchers.Main) {
                     Toast.makeText(context, "Đăng bài thành công!", Toast.LENGTH_SHORT).show()
                     _isLoading.value = false
@@ -63,7 +63,7 @@ class AddPhotoScreenViewModel: ViewModel() {
         }
     }
 
-    private suspend fun addPost(userId: String,imageUrls: List<String>, caption: String, content: String) {
+    private suspend fun addPost(userId: String, imageUrls: List<String>, caption: String, content: String, visibility: String) {
         val newPostRef = db.collection("posts").document()
         val post = hashMapOf(
             "postId" to newPostRef.id,
@@ -74,7 +74,7 @@ class AddPhotoScreenViewModel: ViewModel() {
             "createdAt" to System.currentTimeMillis(),
             "likesCount" to 0,
             "commentsCount" to 0,
-            "visibility" to "public",
+            "visibility" to visibility,
             "tags" to listOf("travel", "food")
         )
         newPostRef.set(post).await()
