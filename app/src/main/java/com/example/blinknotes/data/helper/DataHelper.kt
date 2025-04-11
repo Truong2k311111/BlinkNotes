@@ -61,8 +61,9 @@ object FirestoreHelper {
 
     // 5. Lấy danh sách bài viết
     fun getAllPosts(lastPost: Post? = null, callback: (List<Post>) -> Unit) {
-        // Lấy tất cả bài viết
+        // Lấy tất cả bài viết có visibility là "public"
         FirebaseFirestore.getInstance().collection("posts")
+            .whereEqualTo("visibility", "public")
             .get()
             .addOnSuccessListener { result ->
                 val postsList = result.documents.mapNotNull { doc ->

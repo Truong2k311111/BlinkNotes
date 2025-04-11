@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.blinknotes.data.helper.FirestoreHelper
+import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.ui.home.User
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -14,6 +15,10 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import com.google.firebase.firestore.FieldValue
+import kotlinx.coroutines.tasks.await
 
 data class Comment(
     val id: String = "",
@@ -239,5 +244,131 @@ class DetailScreenViewModel : ViewModel() {
                 Log.e("DetailScreen", "Error fetching comment: ${e.message}")
                 callback(null)
             }
+    }
+
+    private val _followStatus = MutableStateFlow<Map<String, FollowStatus>>(emptyMap())
+    val followStatus: StateFlow<Map<String, FollowStatus>> = _followStatus
+
+    var currentPostUserId: String = ""
+        private set
+
+    data class FollowStatus(
+        val isFollowing: Boolean = false,
+        val isFollowedBy: Boolean = false
+    )
+
+    fun getPostsByLargeUserList(userIds: List<String>, callback: (List<Post>) -> Unit) {
+        val chunks = userIds.chunked(10)
+        val allPosts = mutableListOf<Post>()
+
+        val totalChunks = chunks.size
+        var completed = 0
+
+        for (chunk in chunks) {
+            db.collection("posts")
+                .whereIn("userId", chunk)
+                .get()
+                .addOnSuccessListener { result ->
+                    val posts = result.documents.mapNotNull { doc ->
+                        val data = doc.data
+                        if (data != null) {
+                            Post(
+                                id = doc.id,
+                                userId = data["userId"] as? String ?: "",
+                                userIdCmt = data["userIdCmt"] as? String ?: "",
+                                imageUrls = data["imageUrls"] as? List<String> ?: emptyList(),
+                                firstImageUrl = (data["imageUrls"] as? List<String>)?.firstOrNull() ?: "",
+                                caption = data["caption"] as? String ?: "",
+                                content = data["content"] as? String ?: "",
+                                createdAt = data["createdAt"] as? Long ?: System.currentTimeMillis(),
+                                likesCount = (data["likesCount"] as? Long)?.toInt() ?: 0,
+                                commentsCount = (data["commentsCount"] as? Long)?.toInt() ?: 0,
+                                visibility = data["visibility"] as? String ?: "public",
+                                tags = data["tags"] as? List<String> ?: emptyList()
+                            )
+                        } else null
+                    }
+                    allPosts += posts
+                    completed++
+                    if (completed == totalChunks) {
+                        callback(allPosts)
+                    }
+                }
+                .addOnFailureListener {
+                    completed++
+                    if (completed == totalChunks) {
+                        callback(allPosts)
+                    }
+                }
+        }
+    }
+
+    fun checkFollowStatus(currentUserId: String, targetUserId: String) {
+        viewModelScope.launch {
+            try {
+                // Lấy thông tin người dùng hiện tại
+                val currentUserDoc = db.collection("users").document(currentUserId).get().await()
+                val currentUser = currentUserDoc.toObject(User::class.java)
+
+                // Lấy thông tin người dùng mục tiêu
+                val targetUserDoc = db.collection("users").document(targetUserId).get().await()
+                val targetUser = targetUserDoc.toObject(User::class.java)
+
+                if (currentUser != null && targetUser != null) {
+                    // Kiểm tra xem người dùng hiện tại có follow người mục tiêu không
+                    val isFollowing = currentUser.following.contains(targetUserId)
+                    // Kiểm tra xem người mục tiêu có follow người dùng hiện tại không
+                    val isFollowedBy = targetUser.following.contains(currentUserId)
+
+                    // Lưu trạng thái với key là targetUserId
+                    _followStatus.value = _followStatus.value + (targetUserId to FollowStatus(isFollowing, isFollowedBy))
+                }
+            } catch (e: Exception) {
+                Log.e("DetailScreenViewModel", "Error checking follow status", e)
+            }
+        }
+    }
+
+    fun toggleFollow(userId: String, targetUserId: String) {
+        viewModelScope.launch {
+            try {
+                val currentUserRef = db.collection("users").document(userId)
+                val targetUserRef = db.collection("users").document(targetUserId)
+
+                val currentUserDoc = currentUserRef.get().await()
+                val targetUserDoc = targetUserRef.get().await()
+
+                val currentUser = currentUserDoc.toObject(User::class.java)
+                val targetUser = targetUserDoc.toObject(User::class.java)
+
+                if (currentUser != null && targetUser != null) {
+                    val isCurrentlyFollowing = currentUser.following.contains(targetUserId)
+
+                    // Update Firestore
+                    currentUserRef.update(
+                        "following",
+                        if (isCurrentlyFollowing) FieldValue.arrayRemove(targetUserId)
+                        else FieldValue.arrayUnion(targetUserId)
+                    )
+
+                    targetUserRef.update(
+                        "followers",
+                        if (isCurrentlyFollowing) FieldValue.arrayRemove(userId)
+                        else FieldValue.arrayUnion(userId)
+                    )
+
+                    // Cập nhật lại trạng thái sau khi hoàn tất
+                    val updatedCurrentUser = currentUserRef.get().await().toObject(User::class.java)
+                    val updatedTargetUser = targetUserRef.get().await().toObject(User::class.java)
+
+                    _followStatus.value = _followStatus.value + (targetUserId to FollowStatus(
+                        isFollowing = updatedCurrentUser?.following?.contains(targetUserId) == true,
+                        isFollowedBy = updatedTargetUser?.following?.contains(userId) == true
+                    ))
+                }
+            } catch (e: Exception) {
+                Log.e("DetailScreenViewModel", "Error toggling follow status", e)
+            }
+        }
     }
 }

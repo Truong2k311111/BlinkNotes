@@ -19,6 +19,7 @@ import com.example.blinknotes.ui.search.SearchScreen
 import com.example.blinknotes.ui.search.SearchScreenViewModelFactory
 import com.example.blinknotes.ui.profile.EditProfileImageScreen
 import com.example.blinknotes.ui.profile.EditCoverImageScreen
+import com.example.blinknotes.ui.profile.FollowingAndFollowerScreen
 import com.example.blinknotes.ui.profile.ViewCoverImageScreen
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -83,6 +84,9 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
 
         composable(route = Screens.SettingScreenProfile.route){
             SettingScreenProfile(navController = navController)
+        }
+        composable(route = Screens.FollowingAndFollowerScreen.route){
+            FollowingAndFollowerScreen(navController = navController,)
         }
 
         composable("edit_cover_image_screen/{currentCoverUrl}") { backStackEntry ->

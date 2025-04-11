@@ -69,10 +69,12 @@ import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
+import androidx.compose.ui.platform.LocalConfiguration
 import coil.compose.AsyncImage
 import com.example.blinknotes.R
 import com.example.blinknotes.navigation.Screens
 import com.example.blinknotes.ui.detaill.DetailScreenViewModel
+import com.example.blinknotes.ui.home.FollowedScreenViewModel
 import com.example.blinknotes.ui.home.LoadingAnimation
 import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.ui.home.User
@@ -86,15 +88,18 @@ import java.nio.charset.StandardCharsets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(navController: NavHostController) {
-    var userSignedIn by remember { mutableStateOf(false) }
-    val currentUser = FirebaseAuth.getInstance().currentUser
-    userSignedIn = currentUser != null
-    val viewModel: ProfileScreenViewModel = viewModel()
+fun ProfileScreen(
+    navController: NavHostController,
+    viewModel: ProfileScreenViewModel = viewModel(),
+) {
     var user by remember { mutableStateOf<User?>(null) }
     var followingCount by remember { mutableStateOf(0) }
     var followersCount by remember { mutableStateOf(0) }
-    var showEditProfile by remember { mutableStateOf(false) }
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val userId = currentUser?.uid
+    val isOwnProfile = userId == currentUser?.uid
+    var showSheet by remember { mutableStateOf(false) }
+    val viewModelFollow = FollowedScreenViewModel()
 
     // Lắng nghe kết quả từ EditProfileImageScreen và EditCoverImageScreen
     val updatedImageUrl = navController.currentBackStackEntry
@@ -121,24 +126,38 @@ fun ProfileScreen(navController: NavHostController) {
         }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.getCurrentUser { fetchedUser ->
-            user = fetchedUser
-            if (fetchedUser != null) {
-                viewModel.getFollowCounts(fetchedUser.userId) { following, followers ->
-                    followingCount = following
-                    followersCount = followers
-                }
+    // Lấy thông tin user và số lượng followers/following
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            viewModel.getCurrentUser { fetchUser ->
+                    followersCount = fetchUser!!.followers.size
+                Log.e("ProfileScreen", "Followers count: $followersCount")
+                    followingCount = fetchUser!!.following.size
+                Log.e("ProfileScreen", "Following count: $followingCount")
+                    Log.e("ProfileScreen", "User ID: $userId")
+                    Log.e("ProfileScreen", "User: $fetchUser")
+                user = fetchUser
             }
         }
     }
+    LaunchedEffect(Unit) {
+        viewModelFollow.loadFollowedUsers()
+    }
+
+    // Theo dõi thay đổi của user để cập nhật số lượng
+//    LaunchedEffect(user) {
+//        if (user != null) {
+//            followersCount = user!!.followers.size
+//            followingCount = user!!.following.size
+//        }
+//    }
 
     var selectedTab by remember { mutableStateOf(0) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
         modifier = Modifier
-           // .nestedScroll(scrollBehavior.nestedScrollConnection)
+            // .nestedScroll(scrollBehavior.nestedScrollConnection)
             .fillMaxWidth(),
         topBar = {
             HeaderProfile(
@@ -168,7 +187,7 @@ fun ProfileScreen(navController: NavHostController) {
                         val encodedUrl = URLEncoder.encode(user?.coverImage ?: "", StandardCharsets.UTF_8.toString())
                         navController.navigate("edit_cover_image_screen/$encodedUrl")
                     },
-                    showEditProfile = { showEditProfile = it },
+                    showEditProfile = { showSheet = it },
                     navController = navController
                 )
             }
@@ -179,24 +198,24 @@ fun ProfileScreen(navController: NavHostController) {
                     onTabSelected = { selectedTab = it }
                 )
             }
-            if (userSignedIn) {
+            if (isOwnProfile) {
                 when (selectedTab) {
                     0 -> item {
                         TabMyPost(navController)
                     }
                     1 -> item { TabMySavePost() }
-                    2 -> item { TabMyHeartPost() }
+                    2 -> item { TabMyHeartPost(navController) }
                 }
             }
         }
 
         // Show Edit Profile Bottom Sheet
-        if (showEditProfile) {
+        if (showSheet) {
             EditProfileBottomSheet(
                 currentUsername = user?.username ?: "",
                 currentBlinkNotesId = user?.blinkNotesId ?: "",
                 currentBio = user?.bio ?: "",
-                onDismiss = { showEditProfile = false },
+                onDismiss = { showSheet = false },
                 onSave = { username, blinkNotesId, bio ->
                     currentUser?.uid?.let { userId ->
                         viewModel.updateProfile(userId, username, blinkNotesId, bio)
@@ -204,7 +223,7 @@ fun ProfileScreen(navController: NavHostController) {
                             user = updatedUser
                         }
                     }
-                    showEditProfile = false
+                    showSheet = false
                 }
             )
         }
@@ -299,20 +318,20 @@ fun TopContentProfile(
         }
 
         // Profile Info Section
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
                 .background(Color.White)
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(16.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Box(
-                modifier = Modifier
-                    .size(90.dp)
+                    modifier = Modifier
+                        .size(90.dp)
                         .clip(CircleShape)
                         .background(Color.White)
                 ) {
@@ -321,8 +340,8 @@ fun TopContentProfile(
                         contentDescription = "Profile Image",
                         modifier = Modifier
                             .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = onProfileImageClick
                             ),
@@ -332,25 +351,25 @@ fun TopContentProfile(
                     )
                 }
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
                         text = user?.username ?: "",
-                    fontSize = 18.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
-                )
-                Text(
+                    )
+                    Text(
                         text = user?.blinkNotesId ?: "",
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
                             text = "$followingCount",
                             fontWeight = FontWeight.Bold,
@@ -358,7 +377,12 @@ fun TopContentProfile(
                         )
                         Text(
                             text = "Đang Follow",
-                            color = Color.Gray
+                            color = Color.Gray,
+                            modifier = Modifier
+                                .clickable {
+                                    // Navigate to FollowedScreen
+                                    navController.navigate(Screens.FollowingAndFollowerScreen.route)
+                                }
                         )
                         Text(
                             text = "$followersCount",
@@ -367,7 +391,12 @@ fun TopContentProfile(
                         )
                         Text(
                             text = "Follower",
-                            color = Color.Gray
+                            color = Color.Gray,
+                            modifier = Modifier
+                                .clickable {
+                                    // Navigate to FollowerScreen
+                                    navController.navigate(Screens.FollowingAndFollowerScreen.route)
+                                }
                         )
                     }
                 }
@@ -380,18 +409,18 @@ fun TopContentProfile(
                     color = Color.Black,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-        }
+            }
 
-        Button(
-            modifier = Modifier
+            Button(
+                modifier = Modifier
                     .align(alignment = Alignment.CenterHorizontally)
                     .fillMaxWidth(0.8f),
                 colors = ButtonDefaults.buttonColors(containerColor = colorResource(R.color.gainsboro)),
                 shape = RoundedCornerShape(8.dp),
                 onClick = { showEditProfile(true) }
-        ) {
-            Text(
-                text = "Sửa hồ sơ",
+            ) {
+                Text(
+                    text = "Sửa hồ sơ",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.Black
@@ -425,14 +454,14 @@ fun CustomTopAppBar(navController: NavController, scrollBehavior: TopAppBarScrol
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                       text =  "User Name",
+                        text =  "User Name",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             } else {
                 // Khi MỞ RỘNG -> Hiển thị nhiều nội dung trong một Composable
-           //  TopContentProfile()
+                //  TopContentProfile()
             }
         },
         navigationIcon = {
@@ -492,12 +521,12 @@ fun TabContentProfile(
                     Box(
                         modifier = Modifier.padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(id = iconRes),
-                        contentDescription = null,
-                        modifier = Modifier.size(28.dp),
-                        tint = if (index == selectedTab) Color.Black else Color.Gray
+                    ) {
+                        Icon(
+                            painter = painterResource(id = iconRes),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = if (index == selectedTab) Color.Black else Color.Gray
                         )
                     }
                     // Indicator line
@@ -526,7 +555,7 @@ fun TabMyPost(navController: NavController) {
     val viewModel: ProfileScreenViewModel = viewModel()
     val viewModelUser: DetailScreenViewModel = viewModel()
     var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
-    var  user by remember { mutableStateOf<User?>(null) }
+    var user by remember { mutableStateOf<User?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     val currentUser = FirebaseAuth.getInstance().currentUser
 
@@ -540,7 +569,7 @@ fun TabMyPost(navController: NavController) {
     }
     LaunchedEffect(Unit) {
         currentUser?.uid?.let { userId ->
-            viewModelUser.getUserById (userId) { fetchedUser ->
+            viewModelUser.getUserById(userId) { fetchedUser ->
                 user = fetchedUser
                 isLoading = false
             }
@@ -581,11 +610,10 @@ fun TabMyPost(navController: NavController) {
                     profileImage = user!!.profileImage,
                     userName = user!!.username,
                     onclick = {
-                        //navController.navigate("details/${post.postId}/${post.userId}")
+                        navController.navigate("details/${post.id}/${post.userId}")
                     },
                     modifier = Modifier
-                        .weight(1f) // Đảm bảo item chia đều không gian
-                        .fillMaxWidth(0.5f),
+                        .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2) // Calculate width based on screen size minus padding
                 )
             }
         }
@@ -600,10 +628,74 @@ fun TabMySavePost() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TabMyHeartPost() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = "Profile Screen", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+fun TabMyHeartPost(navController: NavController) {
+    val viewModel: ProfileScreenViewModel = viewModel()
+    val viewModelUser: DetailScreenViewModel = viewModel()
+    var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
+    var user by remember { mutableStateOf<User?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    val currentUser = FirebaseAuth.getInstance().currentUser
+
+    LaunchedEffect(Unit) {
+        currentUser?.uid?.let { userId ->
+            viewModel.getUserLikedPosts(userId) { fetchedPosts ->
+                posts = fetchedPosts
+                isLoading = false
+            }
+        } ?: run { isLoading = false }
+    }
+    LaunchedEffect(Unit) {
+        currentUser?.uid?.let { userId ->
+            viewModelUser.getUserById(userId) { fetchedUser ->
+                user = fetchedUser
+                isLoading = false
+            }
+        } ?: run { isLoading = false }
+    }
+
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            LoadingAnimation()
+        }
+    } else if (posts.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Chưa có bài viết nào đã thả tim",
+                fontSize = 16.sp,
+                color = Color.Gray
+            )
+        }
+    } else {
+        FlowRow(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            maxItemsInEachRow = 2,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            posts.forEach { post ->
+                ItemsTabMyPost(
+                    imageLink = post.firstImageUrl,
+                    numberHeart = post.likesCount,
+                    profileImage = user?.profileImage,
+                    userName = user?.username ?: "",
+                    onclick = {
+                        navController.navigate("details/${post.id}/${post.userId}")
+                    },
+                    modifier = Modifier
+                        .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2) // Calculate width based on screen size minus padding
+                )
+            }
+        }
     }
 }
 
@@ -647,11 +739,13 @@ fun ItemsTabMyPost(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp, end = 16.dp),
+                .padding(top = 6.dp, start = 4.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            // User info section with fixed width
             Row(
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AsyncImage(
@@ -659,7 +753,7 @@ fun ItemsTabMyPost(
                     contentScale = ContentScale.Crop,
                     contentDescription = "Avatar",
                     modifier = Modifier
-                        .size(20.dp)
+                        .size(18.dp)
                         .clip(CircleShape),
                     placeholder = painterResource(id = R.drawable.accounticon),
                     error = painterResource(id = R.drawable.accounticon)
@@ -672,24 +766,29 @@ fun ItemsTabMyPost(
                     color = Color.DarkGray,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 6.dp)
+                    modifier = Modifier.padding(start = 4.dp)
                 )
             }
 
-            Text(
-                text = formattedTextnumberHeart,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colorResource(R.color.black),
-                modifier = Modifier.padding(end = 4.dp)
-            )
-            Image(
-                painter = painterResource(R.drawable.eye_outline),
-                contentDescription = null,
-                Modifier
-                    .size(20.dp),
-            )
+            // Heart count and eye icon section
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = formattedTextnumberHeart,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorResource(R.color.black),
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+
+                Image(
+                    painter = painterResource(R.drawable.eye_outline),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }
-

@@ -174,12 +174,6 @@ fun ImageListItem(
             },
             modifier = Modifier
         )
-
-        PullRefreshIndicator(
-            refreshing = isRefreshing,
-            state = pullRefreshState,
-            modifier = Modifier.align(Alignment.TopCenter)
-        )
     }
 }
 @Composable
@@ -234,7 +228,6 @@ fun ItemsFeed(
                         val height = layoutCoordinates.size.height.toFloat()
                         imageSize = Size(width, height)
                     },
-                placeholder = painterResource(id = R.drawable.splash),
             )
             Text(
                 text = status.toString(),
@@ -309,8 +302,9 @@ fun ItemsFeed(
                                 interactionSource = interactionSource,
                                 indication = null
                             ) {
+                                // Cập nhật trạng thái tim ngay lập tức
                                 isFavoriteState = !isFavoriteState
-                                currentLikes = if (isFavoriteState) currentLikes + 1 else currentLikes - 1
+                                // Gọi hàm cập nhật trên server
                                 onLikeClick()
                             }
                     )

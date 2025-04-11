@@ -107,5 +107,6 @@ dependencies {
     implementation ("com.google.guava:guava:31.0.1-android")
     implementation ("com.google.android.gms:play-services-safetynet:18.0.1")
 
-
+    implementation("com.vanniktech:emoji-google:0.15.0") // Emoji của Google
+    implementation("com.vanniktech:emoji-ios:0.15.0")   // Emoji iOS (nếu muốn)
 }

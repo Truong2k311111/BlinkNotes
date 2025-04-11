@@ -4,13 +4,9 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.blinknotes.data.helper.FirestoreHelper
 import com.example.blinknotes.data.helper.FirestoreHelper.getAllPosts
 import com.example.blinknotes.data.helper.FirestoreHelper.getUser
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
-import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,9 +39,12 @@ data class User(
     val followers: List<String> = emptyList(),
     val following: List<String> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
-    val blinkNotesId : String = "",
-    val bio : String = "",
-    val coverImage: String = ""
+    val blinkNotesId: String = "",
+    val bio: String = "",
+    val coverImage: String = "",
+    val followersCount: Int = 0,
+    val followingCount: Int = 0,
+    val recentPost: List<RecentPost> = emptyList()
 )
 
 class ExploreScreenViewModel : ViewModel() {
@@ -122,12 +121,10 @@ class ExploreScreenViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 delay(800L) // Reduced delay for better UX
-                getAllPosts(lastVisiblePost) { newPosts ->
-                    if (newPosts.isNotEmpty()) {
-                        // Filter out non-public posts
-                        val publicPosts = newPosts.filter { it.visibility == "public" }
+            getAllPosts(lastVisiblePost) { newPosts ->
+                if (newPosts.isNotEmpty()) {
                         // Lọc ra các bài viết đã được tải trước đó
-                        val uniqueNewPosts = publicPosts.filter { post ->
+                        val uniqueNewPosts = newPosts.filter { post ->
                             !loadedPostIds.contains(post.id)
                         }
 
@@ -218,7 +215,19 @@ class ExploreScreenViewModel : ViewModel() {
                         // Nếu đã like thì unlike
                         likeRef.delete()
                         postRef.update("likesCount", FieldValue.increment(-1))
-                        _postLikeStatus.value = _postLikeStatus.value + (postId to false)
+                            .addOnSuccessListener {
+                                // Cập nhật số tim trong danh sách bài viết
+                                val currentPosts = _posts.value
+                                val updatedPosts = currentPosts.map { post ->
+                                    if (post.id == postId) {
+                                        post.copy(likesCount = (post.likesCount - 1).coerceAtLeast(0))
+                                    } else {
+                                        post
+                                    }
+                                }
+                                _posts.value = updatedPosts
+                                _postLikeStatus.value = _postLikeStatus.value + (postId to false)
+                            }
                     } else {
                         // Nếu chưa like thì like
                         likeRef.set(mapOf(
@@ -227,7 +236,19 @@ class ExploreScreenViewModel : ViewModel() {
                             "timestamp" to FieldValue.serverTimestamp()
                         ))
                         postRef.update("likesCount", FieldValue.increment(1))
-                        _postLikeStatus.value = _postLikeStatus.value + (postId to true)
+                            .addOnSuccessListener {
+                                // Cập nhật số tim trong danh sách bài viết
+                                val currentPosts = _posts.value
+                                val updatedPosts = currentPosts.map { post ->
+                                    if (post.id == postId) {
+                                        post.copy(likesCount = post.likesCount + 1)
+                                    } else {
+                                        post
+                                    }
+                                }
+                                _posts.value = updatedPosts
+                                _postLikeStatus.value = _postLikeStatus.value + (postId to true)
+                            }
                     }
                 }
             } catch (e: Exception) {

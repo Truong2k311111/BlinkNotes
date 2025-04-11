@@ -137,8 +137,8 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                                         viewModel.uploadImagesToFirebase(
                                             caption = caption,
                                             content = content,
-                                            visibility = selectedVisibility,
                                             context = context,
+                                            visibility = selectedVisibility
                                         ) {
                                             navController.popBackStack()
                                         }
@@ -447,4 +447,3 @@ fun ItemsImage(
         }
     }
 }
-

@@ -2,17 +2,12 @@ package com.example.blinknotes.ui.profile
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.example.blinknotes.data.helper.FirestoreHelper
 import com.example.blinknotes.ui.home.Post
+import com.example.blinknotes.ui.home.RecentPost
 import com.example.blinknotes.ui.home.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+
 //
 //data class Post(
 //    val postId: String,
@@ -43,7 +38,13 @@ class ProfileScreenViewModel : ViewModel() {
                                 profileImage = data["profileImage"] as? String ?: "",
                                 coverImage = data["coverImage"] as? String ?: "",
                                 blinkNotesId = data["blinkNotesId"] as? String ?: "",
-                                bio = data["bio"] as? String ?: ""
+                                bio = data["bio"] as? String ?: "",
+                                followers = data["followers"] as? List<String> ?: emptyList(),
+                                following = data["following"] as? List<String> ?: emptyList(),
+                                createdAt = data["createdAt"] as? Long ?: System.currentTimeMillis(),
+                                followersCount = (data["followersCount"] as? Long)?.toInt() ?: 0,
+                                followingCount = (data["followingCount"] as? Long)?.toInt() ?: 0,
+                                recentPost = data["recentPost"] as? List<RecentPost> ?: emptyList()
                             )
                             Log.d("ProfileScreen", "Cover image URL: ${user.coverImage}")
                             callback(user)
@@ -161,6 +162,57 @@ class ProfileScreenViewModel : ViewModel() {
             .addOnFailureListener { e ->
                 callback(emptyList())
                 Log.e("Firestore", "Lỗi khi tải dữ liệu: ${e.message}")
+            }
+    }
+
+    fun getUserLikedPosts(userId: String, callback: (List<Post>) -> Unit) {
+        // Lấy danh sách các bài đăng đã like từ collection "likes"
+        db.collection("likes")
+            .whereEqualTo("userId", userId)
+            .get()
+            .addOnSuccessListener { likesSnapshot ->
+                val likedPostIds = likesSnapshot.documents.mapNotNull { it.getString("postId") }
+                
+                if (likedPostIds.isEmpty()) {
+                    callback(emptyList())
+                    return@addOnSuccessListener
+                }
+                
+                // Lấy thông tin chi tiết của các bài đăng đã like
+                db.collection("posts")
+                    .whereIn("id", likedPostIds)
+                    .get()
+                    .addOnSuccessListener { postsSnapshot ->
+                        val postsList = postsSnapshot.documents.mapNotNull { doc ->
+                            try {
+                                val id = doc.id
+                                val userIdCmt = doc.getString("userIdCmt") ?: ""
+                                val imageUrls = doc.get("imageUrls") as? List<String> ?: emptyList()
+                                val firstImageUrl = imageUrls.firstOrNull() ?: ""
+                                val caption = doc.getString("caption") ?: ""
+                                val content = doc.getString("content") ?: ""
+                                val createdAt = doc.getLong("createdAt") ?: 0L
+                                val likesCount = doc.getLong("likesCount")?.toInt() ?: 0
+                                val commentsCount = doc.getLong("commentsCount")?.toInt() ?: 0
+                                val visibility = doc.getString("visibility") ?: "public"
+                                val tags = doc.get("tags") as? List<String> ?: emptyList()
+
+                                Post(id, userId, userIdCmt, imageUrls, firstImageUrl, caption, content, createdAt, likesCount, commentsCount, visibility, tags)
+                            } catch (e: Exception) {
+                                Log.e("ProfileScreen", "Error parsing post: ${e.message}")
+                                null
+                            }
+                        }
+                        callback(postsList)
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("ProfileScreen", "Error getting liked posts: ${e.message}")
+                        callback(emptyList())
+                    }
+            }
+            .addOnFailureListener { e ->
+                Log.e("ProfileScreen", "Error getting likes: ${e.message}")
+                callback(emptyList())
             }
     }
 } 

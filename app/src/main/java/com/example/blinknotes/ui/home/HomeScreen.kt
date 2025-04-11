@@ -6,6 +6,7 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,6 +61,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -73,6 +76,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
@@ -92,6 +96,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreen(
@@ -137,6 +142,9 @@ fun HomeScreen(
                                 navController = navController,
                                 userIdLogin = currentUser!!.uid
                             )
+                            1 -> FollowedScreen(
+                                navController = navController,
+                            )
                         }
                     }
                     Box(
@@ -170,9 +178,9 @@ fun ExploreScreen(
 
     // Handle pull-to-refresh
     LaunchedEffect(gridState) {
-        snapshotFlow { 
-            gridState.firstVisibleItemIndex == 0 && 
-            gridState.firstVisibleItemScrollOffset < -100 
+        snapshotFlow {
+            gridState.firstVisibleItemIndex == 0 &&
+                    gridState.firstVisibleItemScrollOffset < -100
         }.collect { shouldRefresh ->
             if (shouldRefresh && !isRefreshing) {
                 viewModel.refresh()
@@ -181,7 +189,8 @@ fun ExploreScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -218,7 +227,18 @@ fun ExploreScreen(
 fun TabContent(pagerState: PagerState, scope: CoroutineScope, onSearchClick: () -> Unit,  selectedTab: Int,
                onTabSelected: (Int) -> Unit,){
     val tabs = listOf("Đề xuất", "Đã Follow")
+    val animatableOffset = remember { Animatable(0f) }
 
+    LaunchedEffect(pagerState.currentPage, pagerState.currentPageOffsetFraction) {
+        val target = (pagerState.currentPage + pagerState.currentPageOffsetFraction) * 5f
+        animatableOffset.animateTo(
+            target,
+            animationSpec = tween(
+                durationMillis = 500, // 👈 chỉnh thời gian dài hơn để di chuyển chậm
+                easing = LinearOutSlowInEasing
+            )
+        )
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -230,7 +250,7 @@ fun TabContent(pagerState: PagerState, scope: CoroutineScope, onSearchClick: () 
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
 
-        ) {
+            ) {
             tabs.forEachIndexed { index, title ->
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -256,11 +276,14 @@ fun TabContent(pagerState: PagerState, scope: CoroutineScope, onSearchClick: () 
                     )
                     if (index == selectedTab) {
                         WavyLineBox(
-                            modifier = Modifier,
+                            modifier = Modifier
+                                .offset {
+                                    IntOffset(animatableOffset.value.roundToInt(),0)
+                                },
                             color = Color.Cyan
                         )
                     } else {
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
@@ -279,23 +302,44 @@ fun TabContent(pagerState: PagerState, scope: CoroutineScope, onSearchClick: () 
     }
 }
 @Composable
-fun WavyLineBox(modifier: Modifier = Modifier, color: Color = Color.Cyan) {
+fun WavyLineBox(
+    modifier: Modifier = Modifier,
+    color: Color = Color.Cyan
+) {
     Canvas(
         modifier = modifier
-            .height(4.dp)
-            .width(60.dp)
+            .size(width = 100.dp, height = 10.dp) // ngang dài hơn dọc
     ) {
+        val width = size.width
+        val height = size.height
+
         val path = Path().apply {
-            moveTo(0f, size.height / 2)
-            cubicTo(
-                size.width * 0.65f, -size.height ,
-                size.width * 0.65f, size.height * 2,
-                size.width, size.height
-            )
+            // Bắt đầu từ trái
+            moveTo(0f, height * 0.45f)
+            // Lên chéo phải
+            lineTo(width * 0.45f, height * 0.35f)
+            // Lên gấp góc trên
+            lineTo(width * 0.45f, height * 0.15f)
+            // Qua phải dưới
+            lineTo(width, height * 0.55f)
+            // Xuống giữa
+            lineTo(width * 0.55f, height * 0.65f)
+            // Xuống đáy
+            lineTo(width * 0.55f, height * 0.85f)
+            close()
         }
-        drawPath(path = path, color = color, style = Stroke(width = 4f, cap = StrokeCap.Round))
+
+        drawPath(
+            path = path,
+            brush = Brush.linearGradient(
+                colors = listOf(Color.Cyan, Color.Blue, Color(0xFF000080)),
+                start = Offset(0f, 0f),
+                end = Offset(width, height)
+            )
+        )
     }
 }
+
 @Composable
 fun LoadingAnimation(
     modifier: Modifier = Modifier,
@@ -352,4 +396,3 @@ fun LoadingAnimation(
     }
 
 }
-
