@@ -4,9 +4,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,16 +17,19 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -38,15 +44,23 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,6 +82,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FollowedScreen(
     navController: NavController,
@@ -78,11 +93,25 @@ fun FollowedScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val viewModelDetail = DetailScreenViewModel()
+    val viewModelEx = ExploreScreenViewModel()
+    var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
+    val userIdListFollowed = followedUsers.map { it.userId }
+    val users by viewModelEx.users.collectAsState()
+
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val spacing = 8.dp * 3 // 2 khoảng giữa + 1 padding ngoài
+    val itemWidth = (screenWidth - spacing) / 2
+
     LaunchedEffect(Unit) {
         viewModel.loadFollowedUsers()
         viewModel.loadSuggestedUsers()
     }
-    
+    LaunchedEffect(userIdListFollowed) {
+        viewModelDetail.getPostsByLargeUserList(userIdListFollowed) { result ->
+            posts = result
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -177,12 +206,92 @@ fun FollowedScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxWidth()
             ) {
-                items(){
+                item {
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        maxItemsInEachRow = 2,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        posts.forEach { post ->
+                            LaunchedEffect(post.userId) {
+                                if (!users.containsKey(post.userId)) {
+                                    viewModelEx.fetchUser(post.userId)
+                                }
+                                viewModelEx.checkPostLikeStatus(post.id, post.userId)
+                            }
+                            val user = users[post.userId]
+                            val isFavorite by remember(post.id) {
+                                derivedStateOf {
+                                    viewModelEx.postLikeStatus.value[post.id] ?: false
+                                }
+                            }
 
+                            ItemsFeedFolow(
+                                imageLink = post.firstImageUrl,
+                                userName = user?.username ?: "Loading...",
+                                profileImage = user?.profileImage ?: "",
+                                numberHeart = post.likesCount,
+                                status = post.caption,
+                                isFavorite = isFavorite,
+                                modifier = Modifier
+                                    .width( itemWidth),
+                                onclick = {
+                                    viewModelEx.getPostByPostId(post.id) { post ->
+                                        post?.let {
+                                            navController.navigate(Screens.DetaillScreen.route + "/${it.id}/${post.userId}")
+                                        }
+                                    }
+                                },
+                                onLikeClick = { // Handle like click
+                                    viewModelEx.togglePostLike(post.id, post.userId)
+                                },
+
+                            )
+
+                        }
+                    }
                 }
-                
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = Color.Gray
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "Bạn đã xem hết",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "Follow nhiều người hơn hoặc khám phá thêm bài đăng trên bản tin 'Đề xuất' của bạn.",
+                            fontSize = 14.sp,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+                }
+
                 items(followedUsers) { user ->
                     FollowedUserItem(
                         user = user,
@@ -229,41 +338,6 @@ fun FollowedScreen(
                 
                 item {
                     Spacer(modifier = Modifier.height(24.dp))
-                }
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = Color.Gray
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "Bạn đã xem hết",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "Follow nhiều người hơn hoặc khám phá thêm bài đăng trên bản tin 'Đề xuất' của bạn.",
-                            fontSize = 14.sp,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(24.dp))
-                    }
                 }
             }
         }
@@ -576,5 +650,142 @@ fun formatTimeAgo(timestamp: Date): String {
         diffInHours < 24 -> "$diffInHours giờ trước"
         diffInDays < 30 -> "$diffInDays ngày trước"
         else -> SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(timestamp)
+    }
+}
+@Composable
+fun ItemsFeedFolow(
+    imageLink: String?,
+    numberHeart: Int?,
+    status: String?,
+    profileImage: String,
+    userName: String,
+    isFavorite: Boolean,
+    modifier: Modifier = Modifier,
+    onclick: () -> Unit,
+    onLikeClick: () -> Unit
+) {
+    var imageSize by remember { mutableStateOf(Size.Zero) }
+    var isFavoriteState by remember { mutableStateOf(isFavorite) }
+    var currentLikes by remember { mutableStateOf(numberHeart ?: 0) }
+    val interactionSource = remember { MutableInteractionSource() }
+
+    // Cập nhật isFavoriteState và currentLikes khi prop thay đổi
+    LaunchedEffect(isFavorite, numberHeart) {
+        isFavoriteState = isFavorite
+        currentLikes = numberHeart ?: 0
+    }
+
+    Box(
+        modifier = modifier
+            .padding(2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .clickable {
+                onclick()
+            }
+    ) {
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(color = Color.White)
+                .padding(end = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            AsyncImage(
+                model = imageLink,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 250.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .onGloballyPositioned { layoutCoordinates ->
+                        val width = layoutCoordinates.size.width.toFloat()
+                        val height = layoutCoordinates.size.height.toFloat()
+                        imageSize = Size(width, height)
+                    },
+            )
+            Text(
+                text = status.toString(),
+                modifier = Modifier
+                    .padding(8.dp)
+                    .align(alignment = Alignment.Start),
+                fontStyle = FontStyle.Normal,
+                fontSize = 14.sp,
+                color = Color.Black,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 16.sp,
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 8.dp, start = 8.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AsyncImage(
+                        model = profileImage,
+                        contentScale = ContentScale.Crop,
+                        contentDescription = "Avatar",
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape),
+                        placeholder = painterResource(id = R.drawable.accounticon),
+                    )
+
+                    Text(
+                        text = userName,
+                        fontSize = 14.sp,
+                        color = Color.DarkGray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = formatNumberHeart(currentLikes),
+                        fontSize = 14.sp,
+                        color = Color.DarkGray,
+                        modifier = Modifier
+                            .padding(end = 8.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Icon(
+                        imageVector = if (isFavoriteState) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        tint = if (isFavoriteState) Color.Red else Color.Gray,
+                        contentDescription = "Favorite",
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null
+                            ) {
+                                // Cập nhật trạng thái tim ngay lập tức
+                                isFavoriteState = !isFavoriteState
+                                // Gọi hàm cập nhật trên server
+                                onLikeClick()
+                            }
+                    )
+                }
+            }
+        }
     }
 }

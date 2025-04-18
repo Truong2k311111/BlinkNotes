@@ -119,7 +119,6 @@ fun DetaillScreen(navController: NavController,
                   userId:String,
                   viewModelDetail: DetailScreenViewModel = viewModel(),
                   ) {
-    var user by remember { mutableStateOf<User?>(null) }
 
     var post by remember { mutableStateOf<Post?>(null) }
     val scrollState = rememberScrollState()
@@ -129,6 +128,7 @@ fun DetaillScreen(navController: NavController,
     val users by viewModel.users.collectAsState()
     val viewModelcmnt: ProfileScreenViewModel = viewModel()
     var usercommnt by remember { mutableStateOf<User?>(null) }
+    var user by remember { mutableStateOf<User?>(null) }
     LaunchedEffect(postId) {
         Log.d("DetailScreen", "Fetching post with ID: $postId")
         viewModel.getPostByPostId(postId) { fetchedPost ->
@@ -498,7 +498,8 @@ fun CommentItems(
                 contentDescription = "Avatar",
                 modifier = Modifier
                     .size(35.dp)
-                    .clip(CircleShape)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
             )
             Column(
                 modifier = Modifier
@@ -1095,7 +1096,8 @@ fun BottomBarDetail(
                     contentDescription = "Avatar",
                     modifier = Modifier
                         .size(35.dp)
-                        .clip(CircleShape)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
                 )
 
                 TextField(

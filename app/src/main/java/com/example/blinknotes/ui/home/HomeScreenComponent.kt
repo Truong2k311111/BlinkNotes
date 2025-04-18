@@ -436,6 +436,6 @@ fun formatNumberHeart(number: Int?): String {
             else -> number.toString()
         }
     }
-    return TODO("Provide the return value")
+    return "0"
 }
 

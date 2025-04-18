@@ -31,6 +31,9 @@ class FollowedScreenViewModel : ViewModel() {
 
     private val _hasFollowedUsers = MutableStateFlow(false)
     val hasFollowedUsers: StateFlow<Boolean> = _hasFollowedUsers
+
+    private val _userIdListFollowed = MutableStateFlow<List<String>>(emptyList())
+    val userIdListFollowed: StateFlow<List<String>> = _userIdListFollowed
     
     init {
         loadFollowedUsers()
@@ -116,6 +119,7 @@ class FollowedScreenViewModel : ViewModel() {
                 }
                 
                 _followedUsers.value = users
+                _userIdListFollowed.value = users.map { it.userId }
             } catch (e: Exception) {
                 Log.e("FollowedViewModel", "Error loading followed users", e)
             } finally {

@@ -64,6 +64,7 @@ object FirestoreHelper {
         // Lấy tất cả bài viết có visibility là "public"
         FirebaseFirestore.getInstance().collection("posts")
             .whereEqualTo("visibility", "public")
+            .whereEqualTo( "status", "active")
             .get()
             .addOnSuccessListener { result ->
                 val postsList = result.documents.mapNotNull { doc ->
@@ -79,8 +80,9 @@ object FirestoreHelper {
                     val commentsCount = doc.getLong("commentsCount")?.toInt() ?: 0
                     val visibility = doc.getString("visibility") ?: "public"
                     val tags = doc.get("tags") as? List<String> ?: emptyList()
+                    val status = doc.getString("status") ?: "draft"
 
-                    Post(id, userId, userIdCmt, imageUrls, firstImageUrl, caption, content, createdAt, likesCount, commentsCount, visibility, tags)
+                    Post(id, userId, userIdCmt, imageUrls, firstImageUrl, caption, content, createdAt, likesCount, commentsCount, visibility, tags, status)
                 }
 
                 // Xáo trộn danh sách bài viết

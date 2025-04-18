@@ -65,6 +65,9 @@ import androidx.wear.compose.material3.IconButton
 import coil.compose.rememberAsyncImagePainter
 import com.example.blinknotes.R
 import com.example.blinknotes.ui.home.LoadingAnimation
+import android.net.Uri
+import androidx.compose.runtime.LaunchedEffect
+
 @Composable
 fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenViewModel = viewModel()) {
     var caption by remember { mutableStateOf("") }
@@ -74,11 +77,23 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
     val selectedImages by viewModel.selectedImages.collectAsState()
     var showVisibilitySheet by remember { mutableStateOf(false) }
     var selectedVisibility by remember { mutableStateOf("public") }
-
+    var selectedStatus by remember { mutableStateOf("active") }
+    var selectedStatusDraft by remember { mutableStateOf("draft") }
     val imagePickerLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
             viewModel.addSelectedImages(uris)
         }
+    val draftId = navController.previousBackStackEntry?.arguments?.getString("draftId")
+    LaunchedEffect(draftId) {
+        if (draftId != null) {
+            viewModel.loadDraft(draftId) { draft ->
+                caption = draft.caption
+                content = draft.content
+                selectedVisibility = draft.visibility
+                viewModel.updateSelectedImages(draft.imageUris.map { Uri.parse(it) })
+            }
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -114,7 +129,17 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                             .weight(1f)
                             .clip(RoundedCornerShape(16.dp))
                             .background(color = colorResource(R.color.white))
-                                .clickable { },
+                                .clickable {
+                                    viewModel.uploadImagesToFirebase(
+                                        caption = caption,
+                                        content = content,
+                                        visibility = selectedVisibility,
+                                        context = context,
+                                        status = selectedStatusDraft
+                                    ) {
+                                            navController.popBackStack()
+                                    }
+                                },
                         ) {
                         Text(
                             text = "Bản nháp",
@@ -138,7 +163,8 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                                             caption = caption,
                                             content = content,
                                             context = context,
-                                            visibility = selectedVisibility
+                                            visibility = selectedVisibility,
+                                            status = selectedStatus
                                         ) {
                                             navController.popBackStack()
                                         }
@@ -447,3 +473,5 @@ fun ItemsImage(
         }
     }
 }
+
+

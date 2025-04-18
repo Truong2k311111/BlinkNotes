@@ -47,7 +47,7 @@
     <color name="cadetblue">#5F9EA0FF</color>
     <color name="chartreuse">#7FFF00FF</color>
     <color name="chocolate">#D2691EFF</color>
-    <color name="coral">#FF7F50FF</color>
+    <color name="coral">#0CC0C0C4</color>
     <color name="cornflowerblue">#6495EDFF</color>
     <color name="cornsilk">#F2EDF2</color>
     <color name="crimson">#DC143CFF</color>
@@ -143,7 +143,7 @@
     <color name="tan">#D2B48CFF</color>
     <color name="thistle">#D8BFD8FF</color>
     <color name="tomato">#FF6347FF</color>
-    <color name="turquoise">#40E0D0FF</color>
+    <color name="turquoise">#52E3E3E8</color>
     <color name="wheat">#F5DEB3FF</color>
     <color name="whitesmoke">#F5F5F5FF</color>
     <color name="yellowgreen">#9ACD32FF</color>

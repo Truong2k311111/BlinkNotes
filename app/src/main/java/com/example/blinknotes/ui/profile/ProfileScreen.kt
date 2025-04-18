@@ -1,9 +1,13 @@
 package com.example.blinknotes.ui.profile
 
+import android.net.Uri
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +17,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +26,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -39,13 +45,16 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MediumTopAppBar
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -84,6 +93,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import androidx.core.net.toUri
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -299,22 +309,34 @@ fun TopContentProfile(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.65f))
+                            )
+                        )
+                )
             }
 
-            // Camera button for updating cover image
-            IconButton(
-                onClick = onCoverImageClick,
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
                     .padding(8.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    .size(36.dp) // Tăng nhẹ kích thước để dễ chạm hơn
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable(onClick = onCoverImageClick),
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.camera),
                     contentDescription = "Edit Cover",
-                    tint = Color.White
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
                 )
             }
+
         }
 
         // Profile Info Section
@@ -430,64 +452,6 @@ fun TopContentProfile(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun CustomTopAppBar(navController: NavController, scrollBehavior: TopAppBarScrollBehavior) {
-
-    val collapsedFraction = scrollBehavior.state.collapsedFraction
-
-    MediumTopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = colorResource(R.color.lightgray),
-            titleContentColor = colorResource(R.color.black),
-        ),
-        title = {
-            if (collapsedFraction == 1f) {
-                // Khi THU NHỎ hoàn toàn -> Chỉ hiển thị 1 Icon + 1 Text
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.logo_app),
-                        contentDescription = "Collapse Icon",
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text =  "User Name",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            } else {
-                // Khi MỞ RỘNG -> Hiển thị nhiều nội dung trong một Composable
-                //  TopContentProfile()
-            }
-        },
-        navigationIcon = {
-//            Image(
-//                painter = painterResource(R.drawable.icon_back),
-//                contentDescription = "",
-//                modifier = Modifier
-//                    .size(24.dp)
-//                    .clickable {
-//                        navController.popBackStack()
-//                    }
-//            )
-        },
-        actions = {
-//            HeaderProfile (
-//                onclickMenu = {
-//                    navController.navigate(Screens.SettingScreenProfile.route) {
-//                        popUpTo(Screens.ProfileScreen.route) { inclusive = true }
-//                    }
-//                }
-//            )
-        },
-        scrollBehavior = scrollBehavior
-    )
-}
-
 @Composable
 fun TabContentProfile(
     selectedTab: Int,
@@ -557,6 +521,8 @@ fun TabMyPost(navController: NavController) {
     var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
     var user by remember { mutableStateOf<User?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var showDeleteSheet by remember { mutableStateOf(false) }
+    var selectedPostId by remember { mutableStateOf<String?>(null) }
     val currentUser = FirebaseAuth.getInstance().currentUser
 
     LaunchedEffect(Unit) {
@@ -565,6 +531,7 @@ fun TabMyPost(navController: NavController) {
                 posts = fetchedPosts
                 isLoading = false
             }
+            viewModel.loadDrafts(userId)
         } ?: run { isLoading = false }
     }
     LaunchedEffect(Unit) {
@@ -609,17 +576,121 @@ fun TabMyPost(navController: NavController) {
                     numberHeart = post.likesCount,
                     profileImage = user!!.profileImage,
                     userName = user!!.username,
+                    isDraft = true,
                     onclick = {
                         navController.navigate("details/${post.id}/${post.userId}")
                     },
+                    onLongPress = {
+                        selectedPostId = post.id
+                        showDeleteSheet = true
+
+                    },
+                    onDelete = {
+                        viewModel.deletePost(post.id) {
+                            posts = posts.filter { it.id != post.id }
+                        }
+                    },
                     modifier = Modifier
-                        .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2) // Calculate width based on screen size minus padding
+                        .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2)
+                )
+            }
+            viewModel.drafts.forEach { draft ->
+                ItemsTabMyPost(
+                    imageLink = draft.firstImageUrl,
+                    numberHeart = null,
+                    profileImage = user!!.profileImage,
+                    userName = "Nháp",
+                    isDraft = false,
+                    onclick = {
+                        navController.navigate("add_photo_screen?draftId=${draft.id}")
+                    },
+                    onLongPress = {
+                        selectedPostId = draft.id
+                        showDeleteSheet = true
+                    },
+                    onDelete = {
+                        viewModel.deletePost(draft.id) {
+                            posts = posts.filter { it.id != draft.id }
+                        }
+                    },
+                    modifier = Modifier
+                        .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2)
                 )
             }
         }
     }
+
+    if (showDeleteSheet) {
+        DeletePostBottomSheet(
+            onDismiss = { showDeleteSheet = false },
+            onDelete = {
+                selectedPostId?.let { postId ->
+                    viewModel.deletePost(postId) {
+                        posts = posts.filter { it.id != postId }
+                        showDeleteSheet = false
+                    }
+                }
+            }
+        )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeletePostBottomSheet(
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        modifier =
+        Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+        shape = RoundedCornerShape(16.dp),
+        containerColor = Color.White,
+        contentColor = Color.Black,
+        tonalElevation = 8.dp,
+        scrimColor = Color.Black.copy(alpha = 0.32f),
+        dragHandle = null,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Xóa bài viết?",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Bạn có chắc chắn muốn xóa bài viết này không?",
+                fontSize = 14.sp,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray)
+                ) {
+                    Text(text = "Hủy", color = Color.Black)
+                }
+                Button(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text(text = "Xóa", color = Color.White)
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun TabMySavePost() {
@@ -633,27 +704,20 @@ fun TabMySavePost() {
 fun TabMyHeartPost(navController: NavController) {
     val viewModel: ProfileScreenViewModel = viewModel()
     val viewModelUser: DetailScreenViewModel = viewModel()
-    var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
-    var user by remember { mutableStateOf<User?>(null) }
+   // var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
+   // var user by remember { mutableStateOf<User?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     val currentUser = FirebaseAuth.getInstance().currentUser
+   // var user by remember { mutableStateOf<User?>(null) }
 
+    val likedPosts = viewModel.postsWithUsers // state list trong ViewModel
+
+    // Gọi khi màn hình được mở lần đầu
     LaunchedEffect(Unit) {
-        currentUser?.uid?.let { userId ->
-            viewModel.getUserLikedPosts(userId) { fetchedPosts ->
-                posts = fetchedPosts
-                isLoading = false
-            }
-        } ?: run { isLoading = false }
+        viewModel.loadLikedPosts(currentUser?.uid ?: "")
+        isLoading = false
     }
-    LaunchedEffect(Unit) {
-        currentUser?.uid?.let { userId ->
-            viewModelUser.getUserById(userId) { fetchedUser ->
-                user = fetchedUser
-                isLoading = false
-            }
-        } ?: run { isLoading = false }
-    }
+
 
     if (isLoading) {
         Box(
@@ -662,7 +726,7 @@ fun TabMyHeartPost(navController: NavController) {
         ) {
             LoadingAnimation()
         }
-    } else if (posts.isEmpty()) {
+    } else if (likedPosts.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -682,14 +746,23 @@ fun TabMyHeartPost(navController: NavController) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            posts.forEach { post ->
+            likedPosts.forEach { likePost ->
                 ItemsTabMyPost(
-                    imageLink = post.firstImageUrl,
-                    numberHeart = post.likesCount,
-                    profileImage = user?.profileImage,
-                    userName = user?.username ?: "",
+                    imageLink = likePost.post.firstImageUrl,
+                    numberHeart = likePost.post.likesCount,
+                    profileImage = likePost.user?.profileImage,
+                    isDraft = true,
+                    userName = likePost.user?.username ?: "",
                     onclick = {
-                        navController.navigate("details/${post.id}/${post.userId}")
+                        navController.navigate("details/${likePost.post.id}/${likePost.user?.userId ?: likePost.post.userIdCmt}")
+                    },
+                    onLongPress = {
+                        // Handle long press if needed
+                    },
+                    onDelete = {
+//                        viewModel.deletePost(likePost.post.id) {
+//                            // Handle successful deletion
+//                        }
                     },
                     modifier = Modifier
                         .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2) // Calculate width based on screen size minus padding
@@ -706,7 +779,10 @@ fun ItemsTabMyPost(
     profileImage: String?,
     userName: String,
     modifier: Modifier = Modifier,
-    onclick: () -> Unit
+    onclick: () -> Unit,
+    onDelete: () -> Unit,
+    isDraft: Boolean = false,
+    onLongPress: () -> Unit ,
 ) {
     val formattedTextnumberHeart = formatNumberHeart(numberHeart)
 
@@ -715,7 +791,10 @@ fun ItemsTabMyPost(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
-            .clickable { onclick() }
+            .combinedClickable(
+                onClick = onclick,
+                onLongClick = onLongPress
+            )
             .padding(4.dp)
             .height(220.dp)
     ) {
@@ -724,17 +803,29 @@ fun ItemsTabMyPost(
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.LightGray)
+                .background(colorResource(R.color.turquoise)),
+            contentAlignment = Alignment.Center
         ) {
             AsyncImage(
-                model = imageLink,
+                model =  imageLink,
                 contentDescription = "Post Image",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
-//                placeholder = painterResource(id = R.drawable.placeholder_image),
-//                error = painterResource(id = R.drawable.placeholder_image)
             )
+            if(!isDraft) {
+                Text(
+                    text = "Nháp",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.6f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+            }
         }
+
 
         Row(
             modifier = Modifier
@@ -780,15 +871,19 @@ fun ItemsTabMyPost(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = colorResource(R.color.black),
-                    modifier = Modifier.padding(end = 4.dp)
+                    modifier = Modifier.padding(end = 2.dp)
                 )
 
-                Image(
-                    painter = painterResource(R.drawable.eye_outline),
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
+                IconButton(onClick = { onDelete() }) {
+                    Icon(
+                        painter = painterResource(R.drawable.eye_outline),
+                        contentDescription = "View Post",
+                        tint = Color.Black,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }
 }
+

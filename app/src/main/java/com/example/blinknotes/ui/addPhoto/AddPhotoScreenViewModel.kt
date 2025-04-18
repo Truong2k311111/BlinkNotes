@@ -2,6 +2,7 @@ package com.example.blinknotes.ui.addPhoto
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -35,7 +36,7 @@ class AddPhotoScreenViewModel: ViewModel() {
         _selectedImages.value = _selectedImages.value+uris
     }
 
-    fun uploadImagesToFirebase( caption: String, content: String,visibility: String ,context: Context, onSuccess: () -> Unit) {
+    fun uploadImagesToFirebase( caption: String, content: String,visibility: String,status: String ,context: Context, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
             try {
@@ -48,8 +49,9 @@ class AddPhotoScreenViewModel: ViewModel() {
                     imageUrls.add(downloadUri)
                 }
                 val visibility = if (visibility.isEmpty()) "public" else visibility
+                val status = if (status.isEmpty()) "active" else status
 
-                addPost(userId, imageUrls, caption, content,visibility)
+                addPost(userId, imageUrls, caption, content,visibility, status)
                 viewModelScope.launch(Dispatchers.Main) {
                     Toast.makeText(context, "Đăng bài thành công!", Toast.LENGTH_SHORT).show()
                     _isLoading.value = false
@@ -69,7 +71,8 @@ class AddPhotoScreenViewModel: ViewModel() {
         imageUrls: List<String>,
         caption: String,
         content: String,
-        visibility: String
+        visibility: String,
+        status: String
     ) {
         val newPostRef = db.collection("posts").document()
         val post = hashMapOf(
@@ -82,8 +85,37 @@ class AddPhotoScreenViewModel: ViewModel() {
             "likesCount" to 0,
             "commentsCount" to 0,
             "visibility" to visibility,
-            "tags" to listOf("travel", "food")
+            "tags" to listOf("travel", "food"),
+            "status" to status
         )
         newPostRef.set(post).await()
+    }
+
+    data class Draft(
+        val id: String,
+        val caption: String,
+        val content: String,
+        val visibility: String,
+        val imageUris: List<String>
+    )
+
+    fun loadDraft(draftId: String, onSuccess: (Draft) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val draftDoc = db.collection("drafts").document(draftId).get().await()
+                if (draftDoc.exists()) {
+                    val draft = Draft(
+                        id = draftDoc.id,
+                        caption = draftDoc.getString("caption") ?: "",
+                        content = draftDoc.getString("content") ?: "",
+                        visibility = draftDoc.getString("visibility") ?: "public",
+                        imageUris = draftDoc.get("imageUris") as? List<String> ?: emptyList()
+                    )
+                    onSuccess(draft)
+                }
+            } catch (e: Exception) {
+                Log.e("AddPhotoScreenViewModel", "Error loading draft: ${e.message}")
+            }
+        }
     }
 }

@@ -348,20 +348,18 @@ fun ViewPagerLoginScreen(
 
 // Danh sách ảnh
 val images = listOf(
-    R.drawable.image1,
-    R.drawable.image2,
-    R.drawable.image1,
-    R.drawable.image4,
-    R.drawable.image1,
-    R.drawable.image2,
-    R.drawable.image1,
-    R.drawable.image4,
-    R.drawable.image1,
-    R.drawable.image2,
-    R.drawable.image1,
-    R.drawable.image4,
-
-)
+    R.drawable.splash,
+    R.drawable.splash,
+    R.drawable.splash,
+    R.drawable.splash,
+    R.drawable.splash,
+    R.drawable.splash,
+    R.drawable.splash,
+    R.drawable.splash,
+    R.drawable.splash,
+    R.drawable.splash,
+    R.drawable.splash,
+    )
 
 //@Preview(showBackground = true)
 //@Composable

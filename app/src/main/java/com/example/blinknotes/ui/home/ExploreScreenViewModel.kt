@@ -29,7 +29,8 @@ data class Post(
     val likesCount: Int = 0,
     val commentsCount: Int = 0,
     val visibility: String = "public",
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    val status: String = "active",
 )
 data class User(
     val userId: String = "",
