@@ -296,8 +296,9 @@ fun FollowedScreen(
                     FollowedUserItem(
                         user = user,
                         onUserClick = {
-                            val encodedUserId = URLEncoder.encode(user.userId, StandardCharsets.UTF_8.toString())
-                            navController.navigate(Screens.ProfileScreen.route + "/$encodedUserId")
+                            navController.navigate(
+                                Screens.ProfileScreen.route + "/${user.userId}"
+                            )
                         },
                         onPostClick = { postId -> 
                             navController.navigate(Screens.DetaillScreen.route + "/$postId")

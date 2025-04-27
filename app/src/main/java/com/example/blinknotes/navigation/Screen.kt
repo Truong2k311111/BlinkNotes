@@ -13,7 +13,7 @@ sealed class Screens(val route: String) {
     object PlashScreen: Screens("plash_screen")
     object ShowBottomBar: Screens("main_screen")
     object SettingScreenProfile: Screens("setting_screen_profile")
-    object EditProfileImageScreen: Screens("edit_profile_image_screen/{currentImageUrl}")
+    object EditProfileImageScreen: Screens("edit_profile_image_screen/{currentImageUrl}/{userId}")
     object PhoneAuthScreen: Screens("phone_auth_screen/{email}/{userName}/{password}/{confirmPassword}"){
         fun createRoute(email: String, userName: String,password: String,confirmPassword:String ) =
             "phone_auth_screen/$email/$userName/$password/$confirmPassword"
@@ -23,5 +23,8 @@ sealed class Screens(val route: String) {
     object ViewCoverImageScreen : Screens("view_cover_image_screen/{imageUrl}")
 
     object FollowingAndFollowerScreen: Screens("FollowingAndFollowerScreen")
+
+    object ChatScreen: Screens("chat_screen")
+    object SearchNotifyScreen:    Screens("search_notify_screen")
 
 }

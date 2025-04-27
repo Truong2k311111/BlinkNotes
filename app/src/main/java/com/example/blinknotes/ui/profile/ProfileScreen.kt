@@ -1,9 +1,6 @@
 package com.example.blinknotes.ui.profile
 
-import android.net.Uri
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,28 +11,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -44,41 +30,36 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MediumTopAppBar
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
-import androidx.compose.ui.platform.LocalConfiguration
 import coil.compose.AsyncImage
 import com.example.blinknotes.R
 import com.example.blinknotes.navigation.Screens
@@ -89,11 +70,8 @@ import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.ui.home.User
 import com.example.blinknotes.ui.home.formatNumberHeart
 import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import androidx.core.net.toUri
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,17 +79,18 @@ import androidx.core.net.toUri
 fun ProfileScreen(
     navController: NavHostController,
     viewModel: ProfileScreenViewModel = viewModel(),
+    guestId : String? = null
 ) {
     var user by remember { mutableStateOf<User?>(null) }
     var followingCount by remember { mutableStateOf(0) }
     var followersCount by remember { mutableStateOf(0) }
     val currentUser = FirebaseAuth.getInstance().currentUser
-    val userId = currentUser?.uid
+    val userId = guestId ?: currentUser?.uid
     val isOwnProfile = userId == currentUser?.uid
     var showSheet by remember { mutableStateOf(false) }
     val viewModelFollow = FollowedScreenViewModel()
+    val isGuestProfile = guestId != null
 
-    // Lắng nghe kết quả từ EditProfileImageScreen và EditCoverImageScreen
     val updatedImageUrl = navController.currentBackStackEntry
         ?.savedStateHandle
         ?.get<String>("updatedImageUrl")
@@ -129,41 +108,30 @@ fun ProfileScreen(
 
     LaunchedEffect(updatedCoverUrl) {
         if (updatedCoverUrl != null) {
-            viewModel.getCurrentUser { updatedUser ->
+            viewModel.getCurrentUser(userId = userId.toString())  { updatedUser ->
                 user = updatedUser
             }
             navController.currentBackStackEntry?.savedStateHandle?.remove<String>("updatedCoverUrl")
         }
     }
-
-    // Lấy thông tin user và số lượng followers/following
-    LaunchedEffect(userId) {
-        if (userId != null) {
-            viewModel.getCurrentUser { fetchUser ->
+        LaunchedEffect(userId) {
+            if (userId != null) {
+                viewModel.getCurrentUser(userId = userId) { fetchUser ->
                     followersCount = fetchUser!!.followers.size
-                Log.e("ProfileScreen", "Followers count: $followersCount")
+                    Log.e("ProfileScreen", "Followers count: $followersCount")
                     followingCount = fetchUser!!.following.size
-                Log.e("ProfileScreen", "Following count: $followingCount")
+                    Log.e("ProfileScreen", "Following count: $followingCount")
                     Log.e("ProfileScreen", "User ID: $userId")
                     Log.e("ProfileScreen", "User: $fetchUser")
-                user = fetchUser
+                    user = fetchUser
+                }
             }
         }
-    }
     LaunchedEffect(Unit) {
         viewModelFollow.loadFollowedUsers()
     }
 
-    // Theo dõi thay đổi của user để cập nhật số lượng
-//    LaunchedEffect(user) {
-//        if (user != null) {
-//            followersCount = user!!.followers.size
-//            followingCount = user!!.following.size
-//        }
-//    }
-
     var selectedTab by remember { mutableStateOf(0) }
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
         modifier = Modifier
@@ -175,6 +143,10 @@ fun ProfileScreen(
                     navController.navigate(Screens.SettingScreenProfile.route) {
                         popUpTo(Screens.ProfileScreen.route) { inclusive = true }
                     }
+                },
+                isOwnProfile = !isGuestProfile,
+                clickBack = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -191,14 +163,18 @@ fun ProfileScreen(
                     followersCount = followersCount,
                     onProfileImageClick = {
                         val encodedUrl = URLEncoder.encode(user?.profileImage ?: "", StandardCharsets.UTF_8.toString())
-                        navController.navigate("edit_profile_image_screen/$encodedUrl")
+                        val userId = user?.userId ?: ""
+                        navController.navigate("edit_profile_image_screen/$encodedUrl/$userId")
                     },
                     onCoverImageClick = {
                         val encodedUrl = URLEncoder.encode(user?.coverImage ?: "", StandardCharsets.UTF_8.toString())
                         navController.navigate("edit_cover_image_screen/$encodedUrl")
                     },
                     showEditProfile = { showSheet = it },
-                    navController = navController
+                    navController = navController,
+                    isOwnProfile = !isGuestProfile,
+                    idUserOfPost =  userId ?: "",
+                    userId =currentUser?.uid ?: "",
                 )
             }
 
@@ -229,7 +205,7 @@ fun ProfileScreen(
                 onSave = { username, blinkNotesId, bio ->
                     currentUser?.uid?.let { userId ->
                         viewModel.updateProfile(userId, username, blinkNotesId, bio)
-                        viewModel.getCurrentUser { updatedUser ->
+                        viewModel.getCurrentUser( userId = userId) { updatedUser ->
                             user = updatedUser
                         }
                     }
@@ -243,6 +219,8 @@ fun ProfileScreen(
 @Composable
 fun HeaderProfile(
     onclickMenu: () -> Unit,
+    isOwnProfile: Boolean = true,
+    clickBack: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -250,6 +228,17 @@ fun HeaderProfile(
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if(!isOwnProfile) {
+            IconButton(onClick = {
+                clickBack()
+            }) {
+                Image(
+                    painter = painterResource(R.drawable.icon_back),
+                    contentDescription = "Back",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
         Spacer(modifier = Modifier.weight(1f))
 
         IconButton(onClick = {}) {
@@ -259,19 +248,21 @@ fun HeaderProfile(
                 modifier = Modifier.size(24.dp)
             )
         }
-
-        IconButton(onClick = {
-            onclickMenu()
-        }) {
-            Image(
-                painter = painterResource(R.drawable.reorder_horizontal),
-                contentDescription = "Reorder",
-                modifier = Modifier.size(24.dp)
-            )
+        if(isOwnProfile) {
+            IconButton(onClick = {
+                onclickMenu()
+            }) {
+                Image(
+                    painter = painterResource(R.drawable.reorder_horizontal),
+                    contentDescription = "Reorder",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopContentProfile(
     user: User?,
@@ -280,8 +271,22 @@ fun TopContentProfile(
     onProfileImageClick: () -> Unit,
     onCoverImageClick: () -> Unit,
     showEditProfile: (Boolean) -> Unit,
-    navController: NavHostController
-) {
+    navController: NavHostController,
+    isOwnProfile: Boolean,
+    viewModel: DetailScreenViewModel = viewModel(),
+    idUserOfPost: String,
+    userId: String = "",
+    ) {
+    val followStatus by viewModel.followStatus.collectAsState()
+    val currentStatus = followStatus[idUserOfPost] ?: DetailScreenViewModel.FollowStatus()
+    var showSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    LaunchedEffect(idUserOfPost) {
+        if (userId.isNotEmpty() && idUserOfPost.isNotEmpty()) {
+            viewModel.checkFollowStatus(userId, idUserOfPost)
+        }
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         // Cover Image Section
         Box(
@@ -320,23 +325,24 @@ fun TopContentProfile(
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .padding(8.dp)
-                    .size(36.dp) // Tăng nhẹ kích thước để dễ chạm hơn
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .clickable(onClick = onCoverImageClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.camera),
-                    contentDescription = "Edit Cover",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
+            if (isOwnProfile) {
+                Box(
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .size(36.dp) // Tăng nhẹ kích thước để dễ chạm hơn
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable(onClick = onCoverImageClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.camera),
+                        contentDescription = "Edit Cover",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
-
         }
 
         // Profile Info Section
@@ -403,7 +409,7 @@ fun TopContentProfile(
                             modifier = Modifier
                                 .clickable {
                                     // Navigate to FollowedScreen
-                                    navController.navigate(Screens.FollowingAndFollowerScreen.route)
+                                    navController.navigate(Screens.FollowingAndFollowerScreen.route + "/${user?.userId}")
                                 }
                         )
                         Text(
@@ -417,7 +423,7 @@ fun TopContentProfile(
                             modifier = Modifier
                                 .clickable {
                                     // Navigate to FollowerScreen
-                                    navController.navigate(Screens.FollowingAndFollowerScreen.route)
+                                    navController.navigate(Screens.FollowingAndFollowerScreen.route + "/${user?.userId}")
                                 }
                         )
                     }
@@ -433,19 +439,113 @@ fun TopContentProfile(
                 )
             }
 
-            Button(
+            if (isOwnProfile) {
+                Button(
+                    modifier = Modifier
+                        .align(alignment = Alignment.CenterHorizontally)
+                        .fillMaxWidth(0.8f),
+                    colors = ButtonDefaults.buttonColors(containerColor = colorResource(R.color.gainsboro)),
+                    shape = RoundedCornerShape(8.dp),
+                    onClick = { showEditProfile(true) }
+                ) {
+                    Text(
+                        text = "Sửa hồ sơ",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black
+                    )
+                }
+            } else {
+                Button(
+                    modifier = Modifier
+                        .align(alignment = Alignment.CenterHorizontally)
+                        .fillMaxWidth(0.8f),
+                    colors = if (currentStatus.isFollowing) ButtonDefaults.buttonColors(containerColor = colorResource(R.color.gainsboro))
+                    else ButtonDefaults.buttonColors(containerColor = colorResource(R.color.tab_line)),
+                    shape = RoundedCornerShape(8.dp),
+                    onClick = {
+                        if (currentStatus.isFollowing) {
+                            showSheet = true
+                        } else {
+                            viewModel.toggleFollow(userId, idUserOfPost)
+                        }
+                    /* Handle follow/unfollow action */ }
+                ) {
+                    val buttonText = when {
+                        currentStatus.isFollowing && currentStatus.isFollowedBy -> "Bạn bè"
+                        currentStatus.isFollowing -> "Đang Follow"
+                        else -> "Follow"
+                    }
+
+                    Text(
+                        text = buttonText,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (currentStatus.isFollowing) Color.Black else Color.White,
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        style = LocalTextStyle.current.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = if (currentStatus.isFollowing) Color.Black else Color.White
+                        ),
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            sheetState = sheetState,
+        ) {
+            Column(
                 modifier = Modifier
-                    .align(alignment = Alignment.CenterHorizontally)
-                    .fillMaxWidth(0.8f),
-                colors = ButtonDefaults.buttonColors(containerColor = colorResource(R.color.gainsboro)),
-                shape = RoundedCornerShape(8.dp),
-                onClick = { showEditProfile(true) }
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Sửa hồ sơ",
-                    fontSize = 16.sp,
+                    text = "Bỏ follow tài khoản này?",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Bỏ Follow",
+                    color = Color.Red,
+                    modifier = Modifier
+                        .clickable(
+                            indication = null,
+                            interactionSource = null
+                        ){
+                            if (userId.isNotEmpty() && userId.isNotEmpty()) {
+                                viewModel.toggleFollow(userId, idUserOfPost)
+                            }
+                            showSheet = false
+                        }
+                    ,
                     fontWeight = FontWeight.Medium,
-                    color = Color.Black
+                    style = MaterialTheme.typography.titleLarge,
+
+                    )
+                Box(modifier = Modifier
+                    .padding(vertical = 4.dp)
+                    .fillMaxWidth()
+                    .background(colorResource(R.color.aliceblue))
+                    .height(8.dp))
+                Text(
+                    text = "Hủy",
+                    color = Color.Black,
+                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier
+                        .padding(bottom = 16.dp)
+                        .clickable(
+                            indication = null,
+                            interactionSource = null
+                        ) {
+                            showSheet = false
+                        }
                 )
             }
         }
@@ -515,7 +615,8 @@ fun TabContentProfile(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TabMyPost(navController: NavController) {
+fun TabMyPost(navController: NavController
+) {
     val viewModel: ProfileScreenViewModel = viewModel()
     val viewModelUser: DetailScreenViewModel = viewModel()
     var posts by remember { mutableStateOf<List<Post>>(emptyList()) }

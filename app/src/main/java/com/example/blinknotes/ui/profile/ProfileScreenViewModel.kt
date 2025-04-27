@@ -29,6 +29,7 @@ data class PostWithUser(
 class ProfileScreenViewModel : ViewModel() {
     private val db = FirebaseFirestore.getInstance()
     private val currentUser = FirebaseAuth.getInstance().currentUser
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
     private val _postsWithUsers = mutableStateListOf<PostWithUser>()
     val postsWithUsers: List<PostWithUser> get() = _postsWithUsers
@@ -38,12 +39,13 @@ class ProfileScreenViewModel : ViewModel() {
     private val _drafts = mutableStateListOf<Post>()
     val drafts: List<Post> get() = _drafts
 
+    private val _followers = mutableStateListOf<User>()
+    val followers: List<User> get() = _followers
 
-
-    fun getCurrentUser(callback: (User?) -> Unit) {
-        if (currentUser != null) {
+    fun getCurrentUser( userId: String,callback: (User?) -> Unit) {
+        if (userId != null) {
             db.collection("users")
-                .document(currentUser.uid)
+                .document(userId)
                 .get()
                 .addOnSuccessListener { document ->
                     if (document.exists()) {
@@ -274,8 +276,40 @@ class ProfileScreenViewModel : ViewModel() {
             }
     }
 
-
-
+    fun loadFollowers(userId: String) {
+        db.collection("users")
+            .whereArrayContains("following", userId)
+            .get()
+            .addOnSuccessListener { result ->
+                val followersList = result.documents.mapNotNull { doc ->
+                    try {
+                        User(
+                            userId = doc.id,
+                            username = doc.getString("username") ?: "",
+                            email = doc.getString("email") ?: "",
+                            profileImage = doc.getString("profileImage") ?: "",
+                            coverImage = doc.getString("coverImage") ?: "",
+                            blinkNotesId = doc.getString("blinkNotesId") ?: "",
+                            bio = doc.getString("bio") ?: "",
+                            followers = doc.get("followers") as? List<String> ?: emptyList(),
+                            following = doc.get("following") as? List<String> ?: emptyList(),
+                            createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                            followersCount = (doc.getLong("followersCount") ?: 0).toInt(),
+                            followingCount = (doc.getLong("followingCount") ?: 0).toInt(),
+                            recentPost = doc.get("recentPost") as? List<RecentPost> ?: emptyList()
+                        )
+                    } catch (e: Exception) {
+                        Log.e("ProfileScreenViewModel", "Error parsing follower: ${e.message}")
+                        null
+                    }
+                }
+                _followers.clear()
+                _followers.addAll(followersList)
+            }
+            .addOnFailureListener { e ->
+                Log.e("ProfileScreenViewModel", "Error loading followers: ${e.message}")
+            }
+    }
 
     fun loadLikedPosts(userId: String) {
         getUserLikedPostsWithUser(userId) { list ->

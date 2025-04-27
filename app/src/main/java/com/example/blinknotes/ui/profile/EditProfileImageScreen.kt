@@ -35,14 +35,17 @@ import java.util.UUID
 fun EditProfileImageScreen(
     currentImageUrl: String,
     onDismiss: () -> Unit,
-    onImageUpdated: (String) -> Unit
+    onImageUpdated: (String) -> Unit,
+    userId: String
 ) {
     val context = LocalContext.current
     val storage = FirebaseStorage.getInstance()
     val db = FirebaseFirestore.getInstance()
     val currentUser = FirebaseAuth.getInstance().currentUser
+    val userId = userId
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    val isOwnProfile = userId == currentUser?.uid
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -60,28 +63,54 @@ fun EditProfileImageScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // TopBar với nút back
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onDismiss
+            if(isOwnProfile) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.icon_back),
-                        contentDescription = "Back",
-                        tint = Color.Black,
-                        modifier = Modifier.size(24.dp)
+                    IconButton(
+                        onClick = onDismiss
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.icon_back),
+                            contentDescription = "Back",
+                            tint = Color.Black,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Text(
+                        text = "Chỉnh sửa ảnh đại diện",
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(start = 8.dp)
                     )
                 }
-                Text(
-                    text = "Chỉnh sửa ảnh đại diện",
-                    fontSize = 18.sp,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
+            }else{
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onDismiss
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.icon_back),
+                            contentDescription = "Back",
+                            tint = Color.Black,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Text(
+                        text = "Ảnh đại diện",
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
             }
 
             // Ảnh đại diện ở giữa
@@ -113,68 +142,70 @@ fun EditProfileImageScreen(
             }
 
             // Các nút ở dưới
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        imagePickerLauncher.launch("image/*")
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colorResource(R.color.bgr)
-                    )
+            if(isOwnProfile) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Chọn ảnh đại diện",
-                        color = Color.Black,
-                        fontSize = 16.sp
-                    )
-                }
-
-                if (selectedImageUri != null) {
                     Button(
                         onClick = {
-                            isLoading = true
-                            val imageRef = storage.reference
-                                .child("profile_images")
-                                .child("${currentUser?.uid}/${UUID.randomUUID()}")
-                            
-                            imageRef.putFile(selectedImageUri!!)
-                                .addOnSuccessListener {
-                                    imageRef.downloadUrl.addOnSuccessListener { downloadUrl ->
-                                        // Cập nhật URL trong Firestore
-                                        db.collection("users")
-                                            .document(currentUser?.uid!!)
-                                            .update("profileImage", downloadUrl.toString())
-                                            .addOnSuccessListener {
-                                                onImageUpdated(downloadUrl.toString())
-                                                onDismiss()
-                                            }
-                                            .addOnFailureListener { e ->
-                                                isLoading = false
-                                            }
-                                    }
-                                }
-                                .addOnFailureListener { e ->
-                                    isLoading = false
-                                }
+                            imagePickerLauncher.launch("image/*")
                         },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = colorResource(R.color.bgr)
-                        ),
-                        enabled = !isLoading
+                        )
                     ) {
                         Text(
-                            text = if (isLoading) "Đang cập nhật..." else "Cập nhật ảnh",
+                            text = "Chọn ảnh đại diện",
                             color = Color.Black,
                             fontSize = 16.sp
                         )
+                    }
+
+                    if (selectedImageUri != null) {
+                        Button(
+                            onClick = {
+                                isLoading = true
+                                val imageRef = storage.reference
+                                    .child("profile_images")
+                                    .child("${currentUser?.uid}/${UUID.randomUUID()}")
+
+                                imageRef.putFile(selectedImageUri!!)
+                                    .addOnSuccessListener {
+                                        imageRef.downloadUrl.addOnSuccessListener { downloadUrl ->
+                                            // Cập nhật URL trong Firestore
+                                            db.collection("users")
+                                                .document(currentUser?.uid!!)
+                                                .update("profileImage", downloadUrl.toString())
+                                                .addOnSuccessListener {
+                                                    onImageUpdated(downloadUrl.toString())
+                                                    onDismiss()
+                                                }
+                                                .addOnFailureListener { e ->
+                                                    isLoading = false
+                                                }
+                                        }
+                                    }
+                                    .addOnFailureListener { e ->
+                                        isLoading = false
+                                    }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = colorResource(R.color.bgr)
+                            ),
+                            enabled = !isLoading
+                        ) {
+                            Text(
+                                text = if (isLoading) "Đang cập nhật..." else "Cập nhật ảnh",
+                                color = Color.Black,
+                                fontSize = 16.sp
+                            )
+                        }
                     }
                 }
             }

@@ -45,7 +45,18 @@ data class User(
     val coverImage: String = "",
     val followersCount: Int = 0,
     val followingCount: Int = 0,
-    val recentPost: List<RecentPost> = emptyList()
+    val recentPost: List<RecentPost> = emptyList(),
+    val hasStory: Boolean = false,
+    val hasMoment: Boolean = false,
+    val isOnline: Boolean = false,
+    val isStoryActive: Boolean = false,
+    val isMoment: Boolean = false,
+    val isMomentSeen: Boolean = false,
+    val isStorySeen: Boolean = false,
+    val isFriend: Boolean = false,
+    val note: String = "",
+    val latestMessage: String = "",
+    val unreadMessages: Int = 0,
 )
 
 class ExploreScreenViewModel : ViewModel() {

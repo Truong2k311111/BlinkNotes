@@ -70,6 +70,7 @@ fun FollowingAndFollowerScreen(
 //    following: List<String>,
     navController: NavController,
     viewModelPro: ProfileScreenViewModel = viewModel(),
+    userId: String
     ) {
     val viewModel = FollowedScreenViewModel()
     val followedUsers by viewModel.followedUsers.collectAsState()
@@ -77,7 +78,7 @@ fun FollowingAndFollowerScreen(
     var followingCount by remember { mutableStateOf(0) }
     var followersCount by remember { mutableStateOf(0) }
     val currentUser = FirebaseAuth.getInstance().currentUser
-    val userId = currentUser?.uid
+    val userId = userId
     val isOwnProfile = userId == currentUser?.uid
     var showSheet by remember { mutableStateOf(false) }
     val viewModelFollow = FollowedScreenViewModel()
@@ -89,7 +90,7 @@ fun FollowingAndFollowerScreen(
     // Lấy thông tin user và số lượng followers/following
     LaunchedEffect(userId) {
         if (userId != null) {
-            viewModelPro.getCurrentUser { fetchUser ->
+            viewModelPro.getCurrentUser(userId = userId) { fetchUser ->
                 followersCount = fetchUser!!.followers.size
                 Log.e("ProfileScreen", "Followers count: $followersCount")
                 followingCount = fetchUser!!.following.size
@@ -175,8 +176,9 @@ fun FollowingAndFollowerScreen(
                     FollowItem(
                         user = user,
                         onUserClick = {
-                            val encodedUserId = URLEncoder.encode(user.userId, StandardCharsets.UTF_8.toString())
-                            navController.navigate(Screens.ProfileScreen.route + "/$encodedUserId")
+                            navController.navigate(
+                                Screens.ProfileScreen.route + "/${user.userId}"
+                            )
                         },
                         onFollowClick = { viewModel.unfollowUser(user.userId) },
                         isFollowing = true

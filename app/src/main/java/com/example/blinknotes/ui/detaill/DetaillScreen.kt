@@ -100,8 +100,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.wear.compose.material3.ScreenStage
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
+import com.example.blinknotes.navigation.Screens
 import com.example.blinknotes.ui.Auth.AuthViewModel
 import com.example.blinknotes.ui.home.ExploreScreenViewModel
 import com.example.blinknotes.ui.home.LoadingAnimation
@@ -153,7 +155,7 @@ fun DetaillScreen(navController: NavController,
         }
     }
     LaunchedEffect(Unit) {
-        viewModelcmnt.getCurrentUser { fetchedUser ->
+        viewModelcmnt.getCurrentUser(userId = userId) { fetchedUser ->
             usercommnt = fetchedUser
         }
     }
@@ -175,7 +177,15 @@ fun DetaillScreen(navController: NavController,
                 username = user?.username ?: "",
                 profileImage = user?.profileImage ?: "",
                 viewModel = viewModelDetail,
-                idUserOfPost = post?.userId ?: ""
+                idUserOfPost = post?.userId ?: "",
+                click = {
+                    if(post?.userId != currentUser?.uid) {
+                        navController.navigate(
+                            Screens.ProfileScreen.route + "/${post?.userId}"
+                        )
+                    }
+                }
+
             )
         }
     ) { paddingValues ->
@@ -781,7 +791,8 @@ fun HeaderDetaill(
     profileImage: String,
     username: String,
     viewModel: DetailScreenViewModel = viewModel(),
-    idUserOfPost: String
+    idUserOfPost: String,
+    click: () -> Unit
 ) {
     val currentUser = FirebaseAuth.getInstance().currentUser
     val userId = currentUser?.uid ?: ""
@@ -817,7 +828,10 @@ fun HeaderDetaill(
                 contentDescription = "Avatar",
                 modifier = Modifier
                     .size(35.dp)
-                    .clip(CircleShape),
+                    .clip(CircleShape)
+                    .clickable {
+                        click()
+                    },
                 contentScale = ContentScale.Crop,
 
             )
@@ -832,6 +846,10 @@ fun HeaderDetaill(
                     .padding(start = 8.dp)
                     .fillMaxWidth(0.4f)
                     .wrapContentHeight()
+                    .clickable {
+                        click()
+                    }
+
             )
         }else{
             Text(
@@ -844,13 +862,14 @@ fun HeaderDetaill(
                     .padding(start = 8.dp)
                     .fillMaxWidth(0.7f)
                     .wrapContentHeight()
+                    .clickable {
+                        click()
+                    }
             )
         }
 
         Spacer(modifier = Modifier.weight(1f))
-
-            // Chỉ hiển thị nút Follow nếu không phải bài đăng của chính mình
-            if (!isOwnPost) {
+         if (!isOwnPost) {
                 Button(
                     modifier = Modifier
                         .height(36.dp)
@@ -1079,7 +1098,7 @@ fun BottomBarDetail(
         if (isCommenting || comment.isNotBlank() || showEmojiPicker) {
             LaunchedEffect(isCommenting) {
                 if (isCommenting) {
-                    delay(200) // Đợi UI ổn định để focus
+                    delay(200) // Đợi UI ổn đ��nh để focus
                     focusRequester.requestFocus()
                     keyboardController?.show()
                 }
@@ -1451,3 +1470,4 @@ private val emojis = listOf(
     "\ud83d\udc6d", // Two Women Holding Hands
     "\ud83d\udc8f" // Kiss
 )
+

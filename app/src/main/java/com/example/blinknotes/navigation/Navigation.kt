@@ -1,6 +1,7 @@
 package com.example.blinknotes.navigation
 
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -45,6 +46,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.wear.compose.material3.IconButton
 import com.example.blinknotes.R
 import com.example.blinknotes.ui.addPhoto.AddPhotoScreenViewModel
+import com.example.blinknotes.ui.profile.ProfileScreenViewModel
 
 
 data class NavigationItem(
@@ -57,6 +59,8 @@ data class NavigationItem(
 fun BottomNavigationBar(navController: NavHostController, items: List<NavigationItem>, viewModel: AddPhotoScreenViewModel = viewModel()) {
     val context = LocalContext.current
     val selectedImages by viewModel.selectedImages.collectAsState()
+
+    val viewModelProfile = viewModel<ProfileScreenViewModel>()
 
     // Get current route to determine which icon should be filled
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
@@ -115,7 +119,15 @@ fun BottomNavigationBar(navController: NavHostController, items: List<Navigation
                 } else {
                     IconButton(
                         onClick = {
-                            navController.navigate(item.route) {
+                            navController.navigate(
+                                if (
+                                item.route == Screens.ProfileScreen.route + "/userId"
+                            ) {
+                                Screens.ProfileScreen.route + "/userId=${viewModelProfile.currentUserId}"
+                            } else {
+                                item.route
+                            }
+                            ){
                                 // Prevent multiple copies of the same destination
                                 launchSingleTop = true
                                 // Restore state when reselecting a previously selected item

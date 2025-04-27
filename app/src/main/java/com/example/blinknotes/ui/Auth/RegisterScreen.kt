@@ -141,7 +141,7 @@ fun RegisterScreen(authViewModel: AuthViewModel, navController: NavController) {
             colors =ButtonDefaults.buttonColors(containerColor = Color.Red),
             shape = RoundedCornerShape(24.dp),
             onClick = {
-               navController.navigate(Screens.PhoneAuthScreen.createRoute(email, userName,password,confirmPassword)){
+               navController.navigate(createRoute(email, userName,password,confirmPassword)){
 
                }
             },
