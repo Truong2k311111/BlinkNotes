@@ -3,6 +3,7 @@ package com.example.blinknotes.ui.profile
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -203,7 +204,10 @@ fun FollowItem(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .clickable(onClick = onUserClick),
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onUserClick),
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(

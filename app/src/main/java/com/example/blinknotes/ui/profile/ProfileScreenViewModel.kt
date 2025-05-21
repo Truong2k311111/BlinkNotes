@@ -2,6 +2,7 @@ package com.example.blinknotes.ui.profile
 
 import android.net.Uri
 import android.util.Log
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import com.example.blinknotes.data.helper.FirestoreHelper.getUser
@@ -12,6 +13,10 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import androidx.core.net.toUri
+import com.google.firebase.firestore.FieldValue
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlin.text.get
 
 //
 //data class Post(
@@ -42,6 +47,134 @@ class ProfileScreenViewModel : ViewModel() {
     private val _followers = mutableStateListOf<User>()
     val followers: List<User> get() = _followers
 
+    private val _user = MutableStateFlow<User?>(null)
+    val user: StateFlow<User?> = _user
+    private val _userAll = MutableStateFlow<List<User>>(emptyList())
+    val userAll: StateFlow<List<User>> = _userAll
+
+        private val _isPrivateAccount = MutableStateFlow(false)
+        val isPrivateAccount: StateFlow<Boolean> = _isPrivateAccount
+
+        private val _blockedUsers = MutableStateFlow<List<User>>(emptyList())
+        val blockedUsers: StateFlow<List<User>> = _blockedUsers
+
+        init {
+            loadPrivacySettings()
+            fetchAllUser()
+        }
+
+    fun fetchAllUser() {
+        db.collection("users")
+            .get()
+            .addOnSuccessListener { result ->
+                val users = result.documents.mapNotNull { document ->
+                    document.toObject(User::class.java)?.copy(userId = document.id)
+                }
+                _userAll.value = users
+            }
+            .addOnFailureListener { e ->
+                Log.e("ProfileScreenViewModel", "Error fetching all users: ${e.message}")
+            }
+    }    fun blockUser(userId: String, onSuccess: @Composable () -> Unit = {}, onFailure: @Composable (Exception) -> Unit = {}) {
+        currentUserId?.let { currentUserId ->
+            db.collection("users").document(currentUserId)
+                .update("blockedUsers", FieldValue.arrayUnion(userId))
+                .addOnSuccessListener {
+                    _blockedUsers.value = _blockedUsers.value + User(userId = userId)
+                }
+                .addOnFailureListener { e ->
+                    Log.e("ProfileScreenViewModel", "Error blocking user: ${e.message}")
+                }
+        }
+    }
+
+        private fun loadPrivacySettings() {
+            currentUserId?.let { userId ->
+                db.collection("users").document(userId).get()
+                    .addOnSuccessListener { document ->
+                        _isPrivateAccount.value = document.getBoolean("isPrivate") ?: false
+                        val blockedUserIds = document.get("blockedUsers") as? List<String> ?: emptyList()
+                        loadBlockedUsers(blockedUserIds)
+                    }
+            }
+        }
+
+    private fun loadBlockedUsers(userIds: List<String>) {
+        if (userIds.isEmpty()) {
+            _blockedUsers.value = emptyList() // Handle empty case
+            return
+        }
+
+        db.collection("users").whereIn(FieldPath.documentId(), userIds).get()
+            .addOnSuccessListener { result ->
+                val users = result.documents.mapNotNull { document ->
+                    document.toObject(User::class.java)?.copy(userId = document.id)
+                }
+
+                _blockedUsers.value = users
+            }
+            .addOnFailureListener { e ->
+                Log.e("ProfileScreenViewModel", "Error loading blocked users: ${e.message}")
+            }
+    }
+
+        fun setPrivateAccount(isPrivate: Boolean) {
+            currentUserId?.let { userId ->
+                db.collection("users").document(userId).update("isPrivate", isPrivate)
+                    .addOnSuccessListener { _isPrivateAccount.value = isPrivate }
+            }
+        }
+    fun unblockUser(userId: String) {
+        try {
+            Log.d("ProfileScreenViewModel", "Attempting to unblock user with ID: $userId")
+
+            // Check if the userId exists in the blockedUsers list
+            val userToUnblock = blockedUsers.value.find { it.userId == userId }
+            if (userToUnblock != null) {
+                // Remove the user from the blocked list in the database
+                db.collection("users")
+                    .document(currentUser?.uid ?: "")
+                    .update("blockedUsers", FieldValue.arrayRemove(userId))
+                    .addOnSuccessListener {
+                        Log.d("ProfileScreenViewModel", "Successfully unblocked user: $userId")
+                        // Update the local state
+                        _blockedUsers.value = _blockedUsers.value.filter { it.userId != userId }
+                    }
+                    .addOnFailureListener { e ->
+                    }
+            } else {
+                Log.e("ProfileScreenViewModel", "User ID not found in blocked users list: $userId")
+            }
+        } catch (e: Exception) {
+            Log.e("ProfileScreenViewModel", "Error in unblockUser: ${e.message}")
+        }
+    }
+        fun fetchUser(userId: String) {
+        db.collection("users").document(userId).get()
+            .addOnSuccessListener { document ->
+                _user.value = document.toObject(User::class.java)
+            }
+            .addOnFailureListener { e ->
+                Log.e("ProfileScreenViewModel", "Error fetching user: ${e.message}")
+            }
+    }
+
+    fun updateSocialLinks(userId: String, facebook: String, instagram: String, twitter: String) {
+        val updates = mutableMapOf<String, Any>()
+        if (facebook.isNotEmpty()) updates["facebookLink"] = facebook
+        if (instagram.isNotEmpty()) updates["instagramLink"] = instagram
+        if (twitter.isNotEmpty()) updates["twitterLink"] = twitter
+
+        if (updates.isNotEmpty()) {
+            db.collection("users").document(userId).update(updates)
+                .addOnSuccessListener {
+                    fetchUser(userId) // Refresh the updated user's data
+                }
+                .addOnFailureListener { e ->
+                    Log.e("ProfileScreenViewModel", "Error updating social links: ${e.message}")
+                }
+        }
+    }
     fun getCurrentUser( userId: String,callback: (User?) -> Unit) {
         if (userId != null) {
             db.collection("users")

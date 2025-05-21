@@ -26,5 +26,9 @@ sealed class Screens(val route: String) {
 
     object ChatScreen: Screens("chat_screen")
     object SearchNotifyScreen:    Screens("search_notify_screen")
+    object DetailImageScreen: Screens("detail_image_screen")
+    object StatusScreen: Screens("status_screen")
+    object LinkScreen: Screens("linkScreen")
+    object PrivacySettingsScreen: Screens("privacySettingsScreen")
 
 }

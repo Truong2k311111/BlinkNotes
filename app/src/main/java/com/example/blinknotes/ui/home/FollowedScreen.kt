@@ -358,14 +358,8 @@ fun FollowedUserItem(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp,
-            pressedElevation = 4.dp,
-            hoveredElevation = 4.dp,
-            focusedElevation = 4.dp,
-        ),
-        colors = CardDefaults.cardColors(
-            containerColor = colorResource(R.color.white)
-        )
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = colorResource(R.color.white))
     ) {
         Column(
             modifier = Modifier
@@ -382,7 +376,11 @@ fun FollowedUserItem(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable(onClick = onUserClick),
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onUserClick
+                        ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AsyncImage(
@@ -403,8 +401,7 @@ fun FollowedUserItem(
                             fontWeight = FontWeight.Bold,
                             color = Color.Black,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier
-                                .padding(bottom = 2.dp),
+                            modifier = Modifier.padding(bottom = 2.dp),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -413,8 +410,7 @@ fun FollowedUserItem(
                             text = user.bio,
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Gray,
-                            modifier = Modifier
-                                .padding(bottom = 2.dp),
+                            modifier = Modifier.padding(bottom = 2.dp),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -422,11 +418,8 @@ fun FollowedUserItem(
                 }
                 Button(
                     onClick = onFollowClick,
-                    modifier = Modifier
-                        .padding(4.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colorResource(R.color.bgr),
-                    ),
+                    modifier = Modifier.padding(4.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = colorResource(R.color.bgr)),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                 ) {
@@ -437,35 +430,24 @@ fun FollowedUserItem(
                 }
             }
 
-            // Recent posts grid
+            // Recent posts grid or empty state
             if (user.recentPost.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (user.recentPost.size >= 2) {
-                        PostPreview(
-                            post = user.recentPost[0],
-                            modifier = Modifier.weight(1f),
-                            onClick = { onPostClick(user.recentPost[0].id) }
-                        )
-                        PostPreview(
-                            post = user.recentPost[1],
-                            modifier = Modifier.weight(1f),
-                            onClick = { onPostClick(user.recentPost[1].id) }
-                        )
-                    } else if (user.recentPost.size == 1) {
-                        PostPreview(
-                            post = user.recentPost[0],
-                            modifier = Modifier.weight(1f),
-                            onClick = { onPostClick(user.recentPost[0].id) }
-                        )
-                        // Empty placeholder with same weight
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
+//                Row(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+//                ) {
+//                    user.recentPost.forEach { post ->
+//                        PostPreview(
+//                            post = post,
+//                            modifier = Modifier.weight(1f),
+//                            onClick = { onPostClick(post.id) }
+//                        )
+//                        // Empty placeholder with same weight
+//                        Spacer(modifier = Modifier.weight(1f))
+//                    }
+//                }
             }
         }
     }
@@ -479,7 +461,10 @@ fun PostPreview(
 ) {
     Column(
         modifier = modifier
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick)
             .fillMaxWidth()
             .padding(8.dp)
             .background(Color.White)
@@ -536,7 +521,10 @@ fun SuggestedUserItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clickable(onClick = onUserClick),
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onUserClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
@@ -563,9 +551,9 @@ fun SuggestedUserItem(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            
+
             Spacer(modifier = Modifier.width(16.dp))
-            
+
             // User info
             Column(
                 modifier = Modifier.weight(1f)
@@ -575,24 +563,24 @@ fun SuggestedUserItem(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                
+
                 Spacer(modifier = Modifier.height(4.dp))
-                
+
                 Text(
                     text = user.username,
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
-                
+
                 Spacer(modifier = Modifier.height(4.dp))
-                
+
                 Text(
                     text = "${user.followersCount} người theo dõi",
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
             }
-            
+
             // Follow button
             Button(
                 onClick = onFollowClick,
@@ -607,9 +595,9 @@ fun SuggestedUserItem(
                     contentDescription = "Follow",
                     modifier = Modifier.size(16.dp)
                 )
-                
+
                 Spacer(modifier = Modifier.width(4.dp))
-                
+
                 Text(
                     text = "Follow",
                     fontSize = 12.sp
@@ -629,7 +617,10 @@ fun IconButton(
         modifier = modifier
             .size(40.dp)
             .clip(CircleShape)
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick)
             .padding(8.dp),
         contentAlignment = Alignment.Center
     ) {

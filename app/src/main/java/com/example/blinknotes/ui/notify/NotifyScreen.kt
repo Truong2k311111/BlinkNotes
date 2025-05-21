@@ -14,7 +14,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -50,11 +57,13 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.BottomSheetScaffold
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
@@ -73,8 +82,9 @@ import coil.compose.AsyncImage
 import com.example.blinknotes.navigation.Screens
 import java.net.URLEncoder
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.runtime.collectAsState
 import com.example.blinknotes.ui.home.User
+import com.example.blinknotes.ui.theme.ShimmerProfileItem
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,21 +92,26 @@ fun NotifyScreen(
     navController: NavHostController,
     viewModel: NotifyViewModel = viewModel()
 ) {
-    val notifyItems = viewModel.notifyItems.collectAsState().value
     val loading = viewModel.loading.collectAsState().value
     var showSheet by remember { mutableStateOf(false) }
+    var showSheetNotes by remember { mutableStateOf(false) }
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val user = viewModel.users.collectAsState().value
+    val userFriend = viewModel.usersFriend.collectAsState().value
     val currentUser = viewModel.currentUser.collectAsState().value
-    val isActive = currentUser?.isOnline ?: false
+    val isOnline = viewModel.isActive.collectAsState().value
+    //val isOnline = currentUser?.isOnline ?: false
+    val unreadMessagesCount = viewModel.unreadMessagesCount.collectAsState().value
 
-
+    LaunchedEffect(Unit) {
+        viewModel.fetchUnreadMessagesCountForAllUsers()
+    }
     Scaffold(
         topBar = {
             NotifyTopBar(
-                isActive = isActive,
-                isOnline = currentUser?.isOnline ?: false, // Pass isOnline status
+                isOnline = isOnline,
                 onClickAddGroup = { /* TODO */ },
                 onClickStatusBox = { showSheet = true },
                 onClickSearch = { navController.navigate(Screens.SearchNotifyScreen.route) } // Navigate to SearchScreen
@@ -105,20 +120,44 @@ fun NotifyScreen(
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
             if (loading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                // Show shimmer loading state
+                LazyColumn {
+                    items(5) {
+                        ShimmerProfileItem()
+                    }
+                }
             } else {
                 NotifyContent(
                     modifier = Modifier.fillMaxWidth(),
-                    notifyItems = user,
+                    notifyItems = userFriend,
                     navController = navController,
-                    onNotifyItemClick = { user ->
-                        println("Clicked on ${user.username}")
-                    }
+                    onNotifyItemClick = { userFriend ->
+                        println("Clicked on ${userFriend.username}")
+                    },
+                    currentUserAvatar = currentUser?.profileImage ?: "",
+                    onclick = { showSheetNotes = true },
+                    viewModel = viewModel
                 )
             }
         }
     }
-
+    if( showSheetNotes) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheetNotes = false },
+            sheetState = sheetState,
+            modifier = Modifier.fillMaxHeight(),
+            containerColor = Color.White,
+        ) {
+           NotesScreen(
+               onAddMomentClick = {},
+               onPostClick = {},
+               onCloseClick = { showSheetNotes = false },
+               notes = "",
+               onSettingsClick = {},
+               currentUserAvatar = currentUser?.profileImage ?: "",
+           )
+        }
+    }
     if (showSheet) {
         ModalBottomSheet(
             onDismissRequest = { showSheet = false },
@@ -154,19 +193,20 @@ fun NotifyScreen(
 
                 // Avatar + trạng thái
                 Box {
-                    Image(
-                        painter = painterResource(id = R.drawable.accounticon),
+                    AsyncImage(
+                        model = currentUser?.profileImage,
                         contentDescription = "Avatar",
                         modifier = Modifier
                             .size(80.dp)
-                            .clip(CircleShape)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
                     )
                     Box(
                         modifier = Modifier
                             .size(16.dp)
                             .align(Alignment.BottomEnd)
                             .background(
-                                if (isActive) Color.Green else Color.Gray,
+                                if (isOnline) Color.Green else Color.Gray,
                                 CircleShape
                             )
                             .border(2.dp, Color.White, CircleShape)
@@ -234,11 +274,11 @@ fun NotifyScreen(
                         modifier = Modifier.weight(1f)
                     )
                     Switch(
-                        checked = isActive,
-                        onCheckedChange = { viewModel.toggleActiveStatus() }
+                        checked =  isOnline,
+                        onCheckedChange = { viewModel.toggleActiveStatus() },
+
                     )
                 }
-
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
@@ -250,8 +290,12 @@ fun NotifyContent(
     modifier: Modifier = Modifier,
     navController: NavHostController,
     notifyItems: List<User>,
-    onNotifyItemClick: (User) -> Unit
+    onNotifyItemClick: (User) -> Unit,
+    currentUserAvatar: String,
+    onclick : () -> Unit = {},
+    viewModel: NotifyViewModel,
 ) {
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
     LazyColumn(
         modifier = modifier
@@ -263,12 +307,15 @@ fun NotifyContent(
         }
         item {
             TopRowComponent(
-                currentUserAvatar = painterResource(id = R.drawable.accounticon),
-                friends = notifyItems,
-                onAddMomentClick = { println("Add moment") },
+                currentUserAvatar = currentUserAvatar,
+                friends = notifyItems.filter { it.userId != currentUserId },
+                onAddMomentClick = {
+                    navController.navigate(Screens.StatusScreen.route)
+                },
                 onAddFriendClick = {},
                 onFriendClick = {},
                 note = "Bạn có suy nghĩ?",
+                onClick = onclick,
 
             )
         }
@@ -277,7 +324,7 @@ fun NotifyContent(
             FixedItemRow(
                 title = "Những Follower mới",
                 subtitle = "Thông báo mới nhất",
-                onClick = {  },
+                onClick = { },
                 drawRes = R.drawable.account_multiple_plus,
                 color = colorResource(R.color.deeppink)
             )
@@ -286,7 +333,7 @@ fun NotifyContent(
             FixedItemRow(
                 title = "Hoạt động",
                 subtitle = "Thông báo hoạt động mới nhất",
-                onClick = {  },
+                onClick = { },
                 drawRes = R.drawable.bell,
                 color = colorResource(R.color.greenyellow)
             )
@@ -295,21 +342,29 @@ fun NotifyContent(
             FixedItemRow(
                 title = "Thông báo hệ thống",
                 subtitle = "Thông báo hệ thống mới nhất",
-                onClick = {  },
+                onClick = { },
                 drawRes = R.drawable.package_variant,
                 color = colorResource(R.color.darkslategray)
             )
         }
 
         // Dynamic NotifyItems
-        items(notifyItems) { item ->
+        items(notifyItems.filter { it.userId != currentUserId }) { item -> // Filter out current user
             val encodedAvatar = URLEncoder.encode(item.profileImage, "UTF-8")
+            LaunchedEffect(item) {
+                notifyItems.forEach { item ->
+                    viewModel.fetchLastMessageForUser(item.userId)
+
+                }
+            }
             NotifyItems(
                 data = item,
+                unreadCount = viewModel.unreadMessagesCount.value[item.userId] ?: 0,
                 onClick = {
                     navController.navigate(
-                        Screens.ChatScreen.route + "/${item.username}/${encodedAvatar}/${item.hasMoment}/${item.isMomentSeen}/${item.isOnline}"
+                        Screens.ChatScreen.route + "/${item.username}/${encodedAvatar}/${item.hasMoment}/${item.isMomentSeen}/${item.isOnline}/${item.userId}"
                     )
+                    viewModel.markMessagesAsRead(item.userId)
                 }
             )
         }
@@ -317,8 +372,7 @@ fun NotifyContent(
 }
 @Composable
 fun NotifyTopBar(
-    isActive: Boolean,
-    isOnline: Boolean, // Add isOnline parameter
+    isOnline: Boolean,
     onClickAddGroup: () -> Unit,
     onClickStatusBox: () -> Unit,
     onClickSearch: () -> Unit
@@ -364,7 +418,7 @@ fun NotifyTopBar(
                         painter = painterResource(id = R.drawable.circle),
                         contentDescription = "Status Circle",
                         modifier = Modifier.size(10.dp),
-                        tint = if (isOnline) Color.Green else Color.Gray // Use isOnline status
+                        tint = if (isOnline) Color.Green else Color.Gray
                     )
                     Spacer(modifier = Modifier.width(2.dp))
                     Icon(
@@ -393,10 +447,11 @@ fun ItemsTopRow(
     note: String = "",
     hasStory: Boolean,
     isStorySeen: Boolean,
-    isFriend: Boolean,
     onClick: () -> Unit,
-    onAddFriendClick: () -> Unit
+    onAddFriendClick: () -> Unit,
+    isFriend: Boolean
 ) {
+
     Column(
         modifier = Modifier
             .padding(horizontal = 8.dp)
@@ -477,7 +532,7 @@ fun ItemsTopRow(
                 }
             }
             if (note.isNotEmpty()) {
-                BubbleNote(text = note)
+                BubbleNote(text = note,onClick={})
             }
         }
 
@@ -493,13 +548,17 @@ fun ItemsTopRow(
 }
 @Composable
 fun TopRowComponent(
-    currentUserAvatar: Painter,
+    currentUserAvatar: String,
     friends: List<User>,
     onAddMomentClick: () -> Unit,
     onFriendClick: (User) -> Unit,
     onAddFriendClick: (User) -> Unit,
-    note: String = ""
+    note: String = "",
+    viewModel: NotifyViewModel = viewModel(),
+    onClick : () -> Unit = {},
 ) {
+    val friendStatusMap by viewModel.friendStatusMap.collectAsState()
+
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
     ) {
@@ -509,15 +568,19 @@ fun TopRowComponent(
                 Box(
                     modifier = Modifier
                         .size(76.dp)
-                        .clickable { onAddMomentClick() },
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) { onAddMomentClick() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = currentUserAvatar,
+                    AsyncImage(
+                        model = currentUserAvatar,
                         contentDescription = "Your Avatar",
                         modifier = Modifier
                             .size(64.dp)
-                            .clip(CircleShape)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
                     )
 
                     Box(
@@ -537,7 +600,7 @@ fun TopRowComponent(
                             modifier = Modifier.size(16.dp)
                         )
                     }
-                    BubbleNote(text = "Bạn có suy nghĩ?")
+                    BubbleNote(text = "Bạn có suy nghĩ?",onClick = onClick)
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -551,22 +614,26 @@ fun TopRowComponent(
 
         // Danh sách bạn bè
         items(friends) { friend ->
+            LaunchedEffect (Unit) {
+                viewModel.checkIfFriend(friend.userId)
+            }
+            val isFriend = friendStatusMap[friend.userId] == true
             ItemsTopRow(
                 avatar = friend.profileImage,
                 username = friend.username,
                 hasStory = friend.hasStory,
                 isStorySeen = friend.isStorySeen,
-                isFriend = friend.isFriend,
                 onClick = {
                     if (friend.hasStory)
-                        onFriendClick(friend) // sang màn hình story
+                        onFriendClick(friend)
                     else
-                        onFriendClick(friend) // sang màn hình chat
+                        onFriendClick(friend)
                 },
                 onAddFriendClick = {
                     onAddFriendClick(friend)
                 },
-                note = friend.note
+                note = friend.note,
+                isFriend = isFriend,
             )
         }
     }
@@ -574,11 +641,13 @@ fun TopRowComponent(
 @Composable
 fun BubbleNote(
     text: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
 ) {
     Box(
         modifier = modifier
             .size(90.dp, 70.dp)
+
     ) {
         Column(
             horizontalAlignment = Alignment.Start,
@@ -587,10 +656,17 @@ fun BubbleNote(
         ) {
             Box(
                 modifier = Modifier
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            onClick()
+                        },
+                    )
                     .shadow(
                         elevation = 5.dp,
                         shape = RoundedCornerShape(16.dp),
-                        ambientColor = Color(0xFF000000), // màu bóng nhẹ
+                        ambientColor = Color(0xFF000000),
                         spotColor = Color(0xFF000000)
                     )
                     .background(Color.White, shape = RoundedCornerShape(16.dp))
@@ -646,7 +722,7 @@ fun FixedItemRow(
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp) // Kích thước vòng tròn
+                .size(56.dp) // Kích thước vòng tròn
                 .background(color = color, shape = CircleShape) // màu đen xanh, bạn tùy chỉnh thêm
                 .clickable { /* Handle click */ },
             contentAlignment = Alignment.Center
@@ -655,7 +731,7 @@ fun FixedItemRow(
                 painter = painterResource(id = drawRes),
                 contentDescription = "Your Icon",
                 tint = Color.White, // icon màu trắng
-                modifier = Modifier.size(20.dp) // Kích thước icon bên trong
+                modifier = Modifier.size(32.dp) // Kích thước icon bên trong
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
@@ -684,8 +760,12 @@ fun FixedItemRow(
 @Composable
 fun NotifyItems(
     data: User,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    unreadCount: Int,
+    viewModel: NotifyViewModel = viewModel(// Pass the viewModel instance
+    )
 ) {
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -694,7 +774,7 @@ fun NotifyItems(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(56.dp),
             contentAlignment = Alignment.Center
         ) {
             if (data.hasMoment) {
@@ -720,7 +800,7 @@ fun NotifyItems(
                         model = data.profileImage,
                         contentDescription = "Avatar",
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(56.dp)
                             .clip(CircleShape),
                         contentScale = ContentScale.Crop
 
@@ -731,7 +811,7 @@ fun NotifyItems(
                     model = data.profileImage,
                     contentDescription = "Avatar",
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(56.dp)
                         .clip(CircleShape),
                     contentScale = ContentScale.Crop
 
@@ -741,10 +821,10 @@ fun NotifyItems(
             if (data.isOnline) {
                 Box(
                     modifier = Modifier
-                        .size(12.dp)
+                        .size(20.dp)
                         .align(Alignment.BottomEnd)
                         .background(Color.Green, CircleShape)
-                        .border(2.dp, Color.White, CircleShape)
+                        .border(3.dp, Color.White, CircleShape)
                 )
             }
         }
@@ -758,12 +838,15 @@ fun NotifyItems(
                 fontSize = 16.sp
             )
             Text(
-                text = data.latestMessage,
+                text =
+                    viewModel.lastMessages.collectAsState().value[data.userId] ?: "",
                 fontSize = 14.sp,
-                color = Color.Gray
+                color = if (unreadCount > 0) Color.Black else Color.Gray,
+                maxLines = 1,
+                fontWeight = if (unreadCount > 0) FontWeight.Bold else FontWeight.Normal,
             )
         }
-        if (data.unreadMessages > 0) {
+        if (unreadCount > 0) {
             Box(
                 modifier = Modifier
                     .size(24.dp)
@@ -771,7 +854,7 @@ fun NotifyItems(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (data.unreadMessages > 5) "5+" else data.unreadMessages.toString(),
+                    text = if (unreadCount > 5) "5+" else unreadCount.toString(),
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold

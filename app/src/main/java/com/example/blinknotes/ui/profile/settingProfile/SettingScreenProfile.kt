@@ -77,7 +77,7 @@ import com.google.firebase.auth.FirebaseAuth
 fun SettingScreenProfile(navController: NavController) {
     val settingsList = listOf(
         SettingItem("Tài khoản", 2, listOf("Tài khoản", "Quyền riêng tư"), listOf(R.drawable.account, R.drawable.lock), R.drawable.icon_arrow_right),
-        SettingItem("Nội dung & Hiển thị", 3, listOf("Thông Báo", "Thời gian sử dụng màn hình","Gia đình Thông minh"), listOf(R.drawable.bell, R.drawable.timer_sand,R.drawable.home_heart), R.drawable.icon_arrow_right),
+        SettingItem("Nội dung & Hiển thị", 3, listOf("Thông Báo", "Liên Kết","Gia đình Thông minh"), listOf(R.drawable.bell, R.drawable.link_box_variant_outline,R.drawable.home_heart), R.drawable.icon_arrow_right),
         SettingItem("Bộ nhớ đệm & Dữ liệu di động", 1, listOf("Giải phóng dung lượng"), listOf(R.drawable.trash_can), R.drawable.icon_arrow_right),
         SettingItem("Hỗ trợ & Giới thiệu", 3, listOf("Báo cáo vấn đề", "Hỗ trợ","Điều khoản và Đhính sách"), listOf(R.drawable.flag_variant, R.drawable.comment_question,R.drawable.information), R.drawable.icon_arrow_right),
         SettingItem("Đăng nhập", 1, listOf("Đăng xuất",), listOf(R.drawable.logout), R.drawable.icon_arrow_right),
@@ -153,6 +153,32 @@ fun SettingScreenProfile(navController: NavController) {
                                         popUpTo(Graph.HOME) { inclusive = true }
                                     }
                                 }
+                            }
+                        }
+                        when(itemsLabel){
+                            "Tài khoản" -> {
+//                                navController.navigate(Screens.AccountScreen.route)
+                            }
+                            "Quyền riêng tư" -> {
+                                navController.navigate(Screens.PrivacySettingsScreen.route)
+                            }
+                            "Thông Báo" -> {
+//                                navController.navigate(Screens.NotificationScreen.route)
+                            }
+                            "Liên Kết" -> {
+                                navController.navigate(Screens.LinkScreen.route)
+                            }
+                            "Giải phóng dung lượng" -> {
+//                                navController.navigate(Screens.FreeUpSpaceScreen.route)
+                            }
+                            "Báo cáo vấn đề" -> {
+//                                navController.navigate(Screens.ReportProblemScreen.route)
+                            }
+                            "Hỗ trợ" -> {
+//                                navController.navigate(Screens.SupportScreen.route)
+                            }
+                            "Điều khoản và Đhính sách" -> {
+//                                navController.navigate(Screens.TermsAndPoliciesScreen.route)
                             }
                         }
                     }

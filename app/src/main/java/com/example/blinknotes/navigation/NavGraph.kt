@@ -1,4 +1,5 @@
 import android.util.Log
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -13,17 +14,20 @@ import com.example.blinknotes.ui.detaill.DetaillScreen
 import com.example.blinknotes.ui.home.HomeScreen
 import com.example.blinknotes.ui.home.HomeScreenViewModel
 import com.example.blinknotes.ui.notify.ChatScreen
+import com.example.blinknotes.ui.notify.DetailImageScreen
 import com.example.blinknotes.ui.notify.NotifyScreen
 import com.example.blinknotes.ui.notify.NotifyViewModel
 import com.example.blinknotes.ui.notify.SearchNotifyScreen
+import com.example.blinknotes.ui.notify.StatusScreen
 import com.example.blinknotes.ui.profile.ProfileScreen
 import com.example.blinknotes.ui.profile.settingProfile.SettingScreenProfile
-import com.example.blinknotes.ui.search.SearchScreen
-import com.example.blinknotes.ui.search.SearchScreenViewModelFactory
+
 import com.example.blinknotes.ui.profile.EditProfileImageScreen
 import com.example.blinknotes.ui.profile.EditCoverImageScreen
 import com.example.blinknotes.ui.profile.FollowingAndFollowerScreen
 import com.example.blinknotes.ui.profile.ViewCoverImageScreen
+import com.example.blinknotes.ui.profile.settingProfile.LinkScreen
+import com.example.blinknotes.ui.profile.settingProfile.PrivacySettingsScreen
 
 
 fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
@@ -55,7 +59,9 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             ProfileScreen(navController = navController)
         }
         composable(route = Screens.SearchScreen.route) {
-            SearchScreen(navController = navController, viewModel = SearchScreenViewModelFactory())
+            SearchScreen(navController = navController,
+                context = LocalContext.current
+            )
         }
         composable(route = Screens.NotifyScreen.route) {
             NotifyScreen( navController = navController,)
@@ -129,13 +135,14 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
         }
 
         composable(
-            route = Screens.ChatScreen.route+"/{username}/{avatarRes}/{hasMoment}/{isMomentSeen}/{isOnline}",
+            route = Screens.ChatScreen.route+"/{username}/{avatarRes}/{hasMoment}/{isMomentSeen}/{isOnline}/{userId}",
             arguments = listOf(
                 navArgument("username") { type = NavType.StringType },
                 navArgument("avatarRes") { type = NavType.StringType },
                 navArgument("hasMoment") { type = NavType.BoolType },
                 navArgument("isMomentSeen") { type = NavType.BoolType },
                 navArgument("isOnline") { type = NavType.BoolType },
+                navArgument("userId") { type = NavType.StringType }
             )
         )
         { backStackEntry ->
@@ -144,7 +151,8 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             val hasMoment = backStackEntry.arguments?.getBoolean("hasMoment") ?: false
             val isMomentSeen = backStackEntry.arguments?.getBoolean("isMomentSeen") ?: false
             val isOnline = backStackEntry.arguments?.getBoolean("isOnline") ?: false
-             ChatScreen(navController = navController, username = username, avatarRes = avatarRes, hasMoment = hasMoment, isMomentSeen = isMomentSeen, isOnline = isOnline   )
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+             ChatScreen(navController = navController, username = username, avatarRes = avatarRes, hasMoment = hasMoment, isMomentSeen = isMomentSeen, isOnline = isOnline, userOtherId =userId )
         }
         composable(route = Screens.SearchNotifyScreen.route) {
             val notifyViewModel: NotifyViewModel = viewModel()
@@ -153,6 +161,36 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
                 viewModel = notifyViewModel
             )
         }
+        composable(
+            route = Screens.DetailImageScreen.route + "/{imageUrl}",
+            arguments = listOf(navArgument("imageUrl") { type = NavType.StringType }
+        )
+        )
+        { backStackEntry ->
+            val imageUrl = backStackEntry.arguments?.getString("imageUrl") ?: ""
+            DetailImageScreen(
+                imageUrl = imageUrl,
+                onBack =  { navController.popBackStack() },
+            )
+        }
+        composable( route = Screens.StatusScreen.route) {
+            StatusScreen(navController = navController)
+        }
+        composable( route = Screens.LinkScreen.route) {
+            LinkScreen(
+                viewModel = viewModel(),
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        composable( route = Screens.PrivacySettingsScreen.route) {
+            PrivacySettingsScreen(
+                viewModel = viewModel(),
+              navController = navController
+            )
+        }
+
 
     }
 }
@@ -167,8 +205,11 @@ fun NavGraphBuilder.detailsNavGraph(navController: NavHostController) {
             val userId = backStackEntry.arguments?.getString("userId") ?: ""
 
             Log.d("Navigation", "Navigated to DetaillScreen with postId: $postId and userId: $userId")
+            val notifyViewModel: NotifyViewModel = viewModel()
 
-            DetaillScreen(navController = navController, postId = postId, userId = userId)
+            DetaillScreen(navController = navController, postId = postId, userId = userId,
+                viewModelNotify = notifyViewModel
+            )
         }
 
     }

@@ -127,7 +127,9 @@ fun HomeScreen(
                 scope = scope,
                 selectedTab = selectedTab,
                 onTabSelected = { tabIndex -> selectedTab = tabIndex },
-                onSearchClick = {}
+                onSearchClick = {
+                    navController.navigate(Screens.SearchScreen.route)
+                }
             )
             if (userSignedIn) {
                 Box(
@@ -147,20 +149,6 @@ fun HomeScreen(
                             )
                         }
                     }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(10.dp)
-                            .align(Alignment.BottomCenter)
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color.White
-                                    )
-                                )
-                            )
-                    )
                 }
             }
         }

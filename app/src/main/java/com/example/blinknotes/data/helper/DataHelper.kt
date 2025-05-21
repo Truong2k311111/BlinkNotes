@@ -1,12 +1,16 @@
 package com.example.blinknotes.data.helper
 
 import android.util.Log
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.blinknotes.ui.detaill.Comment
+import com.example.blinknotes.ui.home.ExploreScreenViewModel
 import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.ui.home.User
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QuerySnapshot
 
 object FirestoreHelper {
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
@@ -58,11 +62,124 @@ object FirestoreHelper {
             .delete()
             .addOnFailureListener { e -> Log.e("Firestore", "Error deleting post: $e") }
     }
-
-    // 5. Lấy danh sách bài viết
-    fun getAllPosts(lastPost: Post? = null, callback: (List<Post>) -> Unit) {
+    fun getAllPosts2( lastPost: Post? = null, callback: (List<Post>) -> Unit) {
         // Lấy tất cả bài viết có visibility là "public"
         FirebaseFirestore.getInstance().collection("posts")
+            .whereEqualTo("visibility", "public")
+            .whereEqualTo( "status", "active")
+            .get()
+            .addOnSuccessListener { result ->
+                val postsList = result.documents.mapNotNull { doc ->
+                    val id = doc.id
+                    val userId = doc.getString("userId") ?: ""
+                    val userIdCmt = doc.getString("userIdCmt") ?: ""
+                    val imageUrls = doc.get("imageUrls") as? List<String> ?: emptyList()
+                    val firstImageUrl = imageUrls.firstOrNull() ?: ""
+                    val caption = doc.getString("caption") ?: ""
+                    val content = doc.getString("content") ?: ""
+                    val createdAt = doc.getLong("createdAt") ?: 0L
+                    val likesCount = doc.getLong("likesCount")?.toInt() ?: 0
+                    val commentsCount = doc.getLong("commentsCount")?.toInt() ?: 0
+                    val visibility = doc.getString("visibility") ?: "public"
+                    val tags = doc.get("tags") as? List<String> ?: emptyList()
+                    val status = doc.getString("status") ?: "draft"
+
+                    Post(id, userId, userIdCmt, imageUrls, firstImageUrl, caption, content, createdAt, likesCount, commentsCount, visibility, tags, status)
+                }
+
+                // Xáo trộn danh sách bài viết
+                val shuffledPosts = postsList.shuffled()
+
+                // Nếu có lastPost, lọc ra các bài viết đã hiển thị
+                val filteredPosts = if (lastPost != null) {
+                    shuffledPosts.filter { it.id != lastPost.id }
+                } else {
+                    shuffledPosts
+                }
+
+                // Lấy 10 bài viết đầu tiên sau khi xáo trộn
+                callback(filteredPosts.take(10))
+            }
+            .addOnFailureListener { e ->
+                callback(emptyList())
+                Log.e("Firestore", "Lỗi khi tải dữ liệu: ${e.message}")
+            }
+    }
+    fun getAllPostsExcludingUsers(
+        listUser: List<String>,
+        lastPost: Post? = null,
+        callback: (List<Post>) -> Unit
+    ) {
+        if (listUser.isEmpty()) {
+            // Nếu danh sách rỗng, lấy tất cả bài viết
+            getAllPosts(emptyList(), lastPost, callback)
+            return
+        }
+
+        val chunkedLists = listUser.chunked(10) // Chia listUser thành các nhóm nhỏ (tối đa 10 phần tử)
+        val allPosts = mutableListOf<Post>()
+        var completedQueries = 0
+
+        chunkedLists.forEach { chunk ->
+            FirebaseFirestore.getInstance().collection("posts")
+                .whereNotIn("userId", chunk)
+                .whereEqualTo("visibility", "public")
+                .whereEqualTo("status", "active")
+                .get()
+                .addOnSuccessListener { result ->
+                    val posts = result.documents.mapNotNull { doc ->
+                        val id = doc.id
+                        val userId = doc.getString("userId") ?: ""
+                        val imageUrls = doc.get("imageUrls") as? List<String> ?: emptyList()
+                        val firstImageUrl = imageUrls.firstOrNull() ?: ""
+                        val caption = doc.getString("caption") ?: ""
+                        val content = doc.getString("content") ?: ""
+                        val createdAt = doc.getLong("createdAt") ?: 0L
+                        val likesCount = doc.getLong("likesCount")?.toInt() ?: 0
+                        val commentsCount = doc.getLong("commentsCount")?.toInt() ?: 0
+                        val visibility = doc.getString("visibility") ?: "public"
+                        val tags = doc.get("tags") as? List<String> ?: emptyList()
+                        val status = doc.getString("status") ?: "draft"
+
+                        Post(id, userId, "", imageUrls, firstImageUrl, caption, content, createdAt, likesCount, commentsCount, visibility, tags, status)
+                    }
+                    allPosts.addAll(posts)
+                    completedQueries++
+
+                    // When all queries are complete, process the results
+                    if (completedQueries == chunkedLists.size) {
+                        // Remove duplicates based on post ID
+                        val uniquePosts = allPosts.distinctBy { it.id }
+                        
+                        // Sort by creation time
+                        val sortedPosts = uniquePosts.sortedByDescending { it.createdAt }
+                        
+                        // Filter out the last post if needed
+                        val filteredPosts = if (lastPost != null) {
+                            sortedPosts.filter { it.id != lastPost.id }
+                        } else {
+                            sortedPosts
+                        }
+
+                        // Return the first 10 posts
+                        callback(filteredPosts.take(10))
+                    }
+                }
+                .addOnFailureListener { e ->
+                    Log.e("Firestore", "Error fetching posts: ${e.message}")
+                    completedQueries++
+                    if (completedQueries == chunkedLists.size) {
+                        callback(emptyList())
+                    }
+                }
+        }
+    }
+
+    // 5. Lấy danh sách bài viết
+    fun getAllPosts(listUser: List<String> = emptyList(), lastPost: Post? = null, callback: (List<Post>) -> Unit) {
+        // Lấy tất cả bài viết có visibility là "public"
+        FirebaseFirestore.getInstance().collection("posts")
+            .whereNotIn("userId", listUser)
             .whereEqualTo("visibility", "public")
             .whereEqualTo( "status", "active")
             .get()

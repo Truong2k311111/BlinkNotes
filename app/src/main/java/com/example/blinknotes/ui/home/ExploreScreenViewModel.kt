@@ -5,7 +5,10 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.blinknotes.data.helper.FirestoreHelper.getAllPosts
+import com.example.blinknotes.data.helper.FirestoreHelper.getAllPosts2
+import com.example.blinknotes.data.helper.FirestoreHelper.getAllPostsExcludingUsers
 import com.example.blinknotes.data.helper.FirestoreHelper.getUser
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,6 +60,11 @@ data class User(
     val note: String = "",
     val latestMessage: String = "",
     val unreadMessages: Int = 0,
+    val fcmToken: String? = null,
+    val facebookLink: String? = null,
+    val instagramLink: String? = null,
+    val twitterLink: String? = null,
+    val blockedUsers : List<String> = emptyList(),
 )
 
 class ExploreScreenViewModel : ViewModel() {
@@ -68,6 +76,8 @@ class ExploreScreenViewModel : ViewModel() {
 
     private val _users = MutableStateFlow<Map<String, User?>>(emptyMap())
     val users: StateFlow<Map<String, User?>> = _users
+    private val _usersListBlock = MutableStateFlow<Map<String, User?>>(emptyMap())
+    val usersListBlock: StateFlow<Map<String, User?>> = _usersListBlock
 
     private val _userCache = mutableMapOf<String, User?>()
     private val _isRefreshing = MutableStateFlow(false)
@@ -77,14 +87,37 @@ class ExploreScreenViewModel : ViewModel() {
     val postLikeStatus: StateFlow<Map<String, Boolean>> = _postLikeStatus
 
     private var lastVisiblePost: Post? = null
+    private var _listUser = MutableStateFlow<List<String>>(emptyList())
+    val listUser : StateFlow<List<String>> = _listUser
     internal var isLoading = false
     private val pageSize = 10
     private var loadedPostIds = mutableSetOf<String>()
 
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
     init {
-        loadMorePosts()
+        viewModelScope.launch {
+            getAllUser()
+            loadMorePosts()
+        }
     }
-
+    suspend  fun getAllUser() {
+            try {
+                FirebaseFirestore.getInstance().collection("users")
+                    .get()
+                    .addOnSuccessListener { documents ->
+                        val users = documents.mapNotNull { it.toObject(User::class.java) }
+                        val userId = documents.map { it.id }
+                        val blockedByUsers = documents.filter { document ->
+                            val blockedUsers = document.get("blockedUsers") as? List<String> ?: emptyList()
+                            blockedUsers.contains(currentUserId)
+                        }.map { it.id }
+                        _listUser.value = blockedByUsers
+                        Log.d("FirestoreUser", "Users loaded: ${_listUser.value}")
+                        }
+            } catch (e: Exception) {
+                Log.e("Firestore", "Error fetching users: ${e.message}")
+            }
+    }
     fun fetchUser(userId: String) {
         if (_userCache.containsKey(userId)) {
             _users.value = _users.value + (userId to _userCache[userId])
@@ -126,14 +159,16 @@ class ExploreScreenViewModel : ViewModel() {
             }
     }
 
-    fun loadMorePosts() {
+ suspend   fun loadMorePosts() {
         if (isLoading) return
         isLoading = true
-        
-        viewModelScope.launch {
+
             try {
                 delay(800L) // Reduced delay for better UX
-            getAllPosts(lastVisiblePost) { newPosts ->
+//            getAllPosts(listUser = _listUser.value, lastVisiblePost)
+                getAllPosts2(lastVisiblePost)
+               // getAllPostsExcludingUsers(listUser = _listUser.value,lastVisiblePost)
+            { newPosts ->
                 if (newPosts.isNotEmpty()) {
                         // Lọc ra các bài viết đã được tải trước đó
                         val uniqueNewPosts = newPosts.filter { post ->
@@ -154,7 +189,6 @@ class ExploreScreenViewModel : ViewModel() {
                 Log.e("ExploreScreenViewModel", "Error loading posts: ${e.message}")
                 isLoading = false
             }
-        }
     }
 
     fun refresh() {
@@ -167,7 +201,7 @@ class ExploreScreenViewModel : ViewModel() {
                 _userCache.clear()
                 _users.value = emptyMap()
                 loadedPostIds.clear() // Reset danh sách ID đã tải
-                
+
                 delay(1000L) // Add a small delay to show the refresh animation
                 loadMorePosts()
             } finally {

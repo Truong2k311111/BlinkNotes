@@ -72,6 +72,10 @@ import com.example.blinknotes.ui.home.formatNumberHeart
 import com.google.firebase.auth.FirebaseAuth
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -175,6 +179,7 @@ fun ProfileScreen(
                     isOwnProfile = !isGuestProfile,
                     idUserOfPost =  userId ?: "",
                     userId =currentUser?.uid ?: "",
+                    userLinkId = userId?:"",
                 )
             }
 
@@ -276,12 +281,19 @@ fun TopContentProfile(
     viewModel: DetailScreenViewModel = viewModel(),
     idUserOfPost: String,
     userId: String = "",
+    userLinkId: String =""
     ) {
     val followStatus by viewModel.followStatus.collectAsState()
     val currentStatus = followStatus[idUserOfPost] ?: DetailScreenViewModel.FollowStatus()
     var showSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
+    val viewModelProfile : ProfileScreenViewModel = viewModel()
+    val userLink by viewModelProfile.user.collectAsState()
+    LaunchedEffect(userLinkId) {
+        if (userLinkId != null) {
+            viewModelProfile.fetchUser(userLinkId)
+        }
+    }
     LaunchedEffect(idUserOfPost) {
         if (userId.isNotEmpty() && idUserOfPost.isNotEmpty()) {
             viewModel.checkFollowStatus(userId, idUserOfPost)
@@ -332,7 +344,10 @@ fun TopContentProfile(
                         .size(36.dp) // Tăng nhẹ kích thước để dễ chạm hơn
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.5f))
-                        .clickable(onClick = onCoverImageClick),
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onCoverImageClick),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -352,6 +367,7 @@ fun TopContentProfile(
                 .background(Color.White)
                 .padding(16.dp)
         ) {
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -438,6 +454,8 @@ fun TopContentProfile(
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
+            SocialMediaLinks(user = userLink ?: User())
+
 
             if (isOwnProfile) {
                 Button(
@@ -517,13 +535,12 @@ fun TopContentProfile(
                         .clickable(
                             indication = null,
                             interactionSource = null
-                        ){
+                        ) {
                             if (userId.isNotEmpty() && userId.isNotEmpty()) {
                                 viewModel.toggleFollow(userId, idUserOfPost)
                             }
                             showSheet = false
-                        }
-                    ,
+                        },
                     fontWeight = FontWeight.Medium,
                     style = MaterialTheme.typography.titleLarge,
 
@@ -988,3 +1005,69 @@ fun ItemsTabMyPost(
     }
 }
 
+@Composable
+fun SocialMediaLinks(user: User) {
+    val context = LocalContext.current
+
+    Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
+        user.facebookLink?.let { facebookLink ->
+            if (facebookLink.isNotEmpty()) {
+                androidx.compose.material3.Icon(
+                    painter = painterResource(id = R.drawable.facebook),
+                    contentDescription = "Facebook",
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable {
+                            openLink(context, facebookLink)
+                        },
+                    tint = Color(0xFF1877F2)
+                )
+            }
+        }
+        user.instagramLink?.let { instagramLink ->
+            if (instagramLink.isNotEmpty()) {
+                androidx.compose.material3.Icon(
+                    painter = painterResource(id = R.drawable.instagram),
+                    contentDescription = "Instagram",
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable {
+                            openLink(context, instagramLink)
+                        },
+                    tint = Color(0xFFE4405F)
+                )
+            }
+        }
+        user.twitterLink?.let { twitterLink ->
+            if (twitterLink.isNotEmpty()) {
+                androidx.compose.material3.Icon(
+                    painter = painterResource(id = R.drawable.twitter),
+                    contentDescription = "Twitter",
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable {
+                            openLink(context, twitterLink)
+                        },
+                    tint = Color(0xFF1DA1F2)
+                )
+            }
+        }
+    }
+}
+
+fun openLink(context: android.content.Context, url: String) {
+    try {
+        val uri = Uri.parse(url)
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+        if (intent.resolveActivity(context.packageManager) != null) {
+            context.startActivity(intent)
+        } else {
+            Log.e("openLink", "No application can handle this request: $url")
+            // Fallback: Open in a browser
+            val browserIntent = Intent(Intent.ACTION_VIEW, uri)
+            context.startActivity(browserIntent)
+        }
+    } catch (e: Exception) {
+        Log.e("openLink", "Error opening link: $url", e)
+    }
+}

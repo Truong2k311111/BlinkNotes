@@ -45,30 +45,49 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import androidx.wear.compose.material3.RadioButton
 import coil.compose.AsyncImage
 import com.example.blinknotes.R
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.TextField
 import androidx.compose.material.TextFieldDefaults
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.blinknotes.ui.detaill.DetailScreenViewModel
+import com.google.firebase.auth.FirebaseAuth
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.launch
+import android.net.Uri
+import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import com.example.blinknotes.ui.addPhoto.AddPhotoScreenViewModel
+import androidx.compose.material.icons.filled.Send
+import com.example.blinknotes.ui.theme.ShimmerEffect
+import com.example.blinknotes.ui.theme.ShimmerMessageItem
+import com.example.blinknotes.ui.theme.ShimmerProfileItem
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.Surface
+import com.example.blinknotes.ui.profile.ProfileScreenViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,17 +97,108 @@ fun ChatScreen(
     avatarRes: String,
     isOnline: Boolean,
     hasMoment: Boolean,
-    isMomentSeen: Boolean
+    isMomentSeen: Boolean,
+    viewModel: NotifyViewModel = viewModel(),
+    userOtherId: String,
+    viewModelDetail: DetailScreenViewModel = viewModel(),
+    viewModelProfile: ProfileScreenViewModel = viewModel()
+
 ) {
+    val context = LocalContext.current
     var showReportSheet by remember { mutableStateOf(false) }
     var selectedReason by remember { mutableStateOf("") }
+    val currentUser = viewModel.currentUser.collectAsState().value
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+    val messages = viewModel.messages.collectAsState().value
+    val imageProfile = currentUser?.profileImage ?: ""
+    val lazyListState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var showScrollToBottomButton by remember { mutableStateOf(false) }
+    var isInitialLoad by remember { mutableStateOf(true) }
+    var loadedMessageIds by remember { mutableStateOf(emptySet<String>()) }
     val reportReasons = listOf(
         "Spam", "Lừa đảo", "Ngôn ngữ không phù hợp", "Quấy rối", "Thông tin sai lệch",
         "Nội dung bạo lực", "Nội dung khiêu dâm", "Vi phạm bản quyền", "Tài khoản giả mạo", "Khác"
     )
-    val scope = rememberCoroutineScope()
+    val loadingMessages = viewModel.loadingMessages.collectAsState().value
+    val viewModelAddPoto: AddPhotoScreenViewModel = viewModel()
+    val selectedImages = remember { mutableStateListOf<Uri>() }
+    val capturedImageUri = remember { mutableStateOf<Uri?>(null) }
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+           viewModel.uploadAndSendMessage (
+                senderId = currentUserId.toString(),
+                receiverId = userOtherId,
+                message = "",
+                imageUris = uris,
+                onSuccess = {
+                    Toast.makeText(context, "Message sent!", Toast.LENGTH_SHORT).show()
+                },
+                onFailure = { e ->
+                    Toast.makeText(context, "Failed to send message: ${e.message}", Toast.LENGTH_SHORT).show()
+                },
+               contentSendImage = "đã gửi ${uris.size} ảnh"
+            )
+            selectedImages.addAll(uris)
+            viewModel.updateSelectedImages(selectedImages)
+            viewModel.addSelectedImages(selectedImages)
+        }
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success  && capturedImageUri.value != null) {
+                viewModel.uploadAndSendMessage(
+                    senderId = currentUserId.toString(),
+                    receiverId = userOtherId,
+                    message = "",
+                    imageUris = listOf(capturedImageUri.value!!),
+                    onSuccess = {
+                        Toast.makeText(context, "Photo sent!", Toast.LENGTH_SHORT).show()
+                    },
+                    onFailure = { e ->
+                        Toast.makeText(
+                            context,
+                            "Failed to send photo: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    contentSendImage = "Đã gửi ảnh"
+                )
+            selectedImages.addAll(capturedImageUri.value?.let { listOf(it) } ?: emptyList())
+            viewModel.updateSelectedImages(selectedImages)
+            viewModel.addSelectedImages(selectedImages)
+        }
+    }
+
+    // Effect to handle initial loading
+    LaunchedEffect(Unit) {
+        viewModel.listenForMessages(currentUserId = currentUserId.toString(), otherUserId = userOtherId)
+        isInitialLoad = false
+    }
+
+    // Effect to handle scroll to bottom for new messages
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty() && !isInitialLoad) {
+            coroutineScope.launch {
+                lazyListState.animateScrollToItem(0)
+            }
+        }
+    }
+
+    // Effect to handle scroll button visibility
+    LaunchedEffect(lazyListState.firstVisibleItemIndex, lazyListState.isScrollInProgress) {
+        val isAtBottom = lazyListState.firstVisibleItemIndex == 0
+        showScrollToBottomButton = !isAtBottom
+    }
 
     Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.systemBars),
         topBar = {
             Row(
                 modifier = Modifier
@@ -153,10 +263,10 @@ fun ChatScreen(
                         if (isOnline) {
                             Box(
                                 modifier = Modifier
-                                    .size(12.dp)
+                                    .size(20.dp)
                                     .align(Alignment.BottomEnd)
                                     .background(Color.Green, CircleShape)
-                                    .border(2.dp, Color.White, CircleShape)
+                                    .border(3.dp, Color.White, CircleShape)
                             )
                         }
                     }
@@ -198,34 +308,73 @@ fun ChatScreen(
                 }
             }
         },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             MessageInputBar(
                 onSendClick = { message ->
-                    println("Message sent: $message")
+                    viewModel.sendMessage(
+                        senderId = FirebaseAuth.getInstance().currentUser?.uid ?: return@MessageInputBar,
+                        receiverId = userOtherId,
+                        message = message,
+                        contentSendImage = ""
+                    )
+                    keyboardController?.hide()
+                },
+                onImageSendClick = {
+                    imagePickerLauncher.launch("image/*")
+                },
+                onCameraClick = {
+                    val uri = viewModel.createImageUri(context)
+                    capturedImageUri.value = uri
+                    uri?.let { cameraLauncher.launch(it) }
                 }
             )
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
-            Divider(color = Color.LightGray,modifier = Modifier.height(0.5.dp))
-
+        Box(modifier = Modifier.padding(paddingValues).imePadding()) {
+            Divider(color = Color.LightGray, modifier = Modifier.height(0.5.dp))
             // Main chat content
             LazyColumn(
+                state = lazyListState,
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                reverseLayout = true
             ) {
-                // Add chat messages here
-                items(20) { index ->
-                    val isSender = index % 2 == 0
-                    val message = if (isSender) "Hello, how are you?" else "I'm good, thanks!"
-                    val timestamp = "12:00 PM"
-                    val profileImageUrl = avatarRes // Replace with actual image URL
-
+                items(messages.reversed()) { message ->
+                    val isSender = message.senderId == currentUserId
+                    val timestamp = viewModelDetail.getTimeAgo(message.timestamp)
+                    
                     ItemsMesg(
                         isSender = isSender,
-                        profileImageUrl = profileImageUrl,
-                        message = message,
-                        timestamp = timestamp
+                        profileImageUrl = if (isSender) imageProfile else avatarRes,
+                        message = message.content,
+                        timestamp = timestamp,
+                        profileImageSender = imageProfile,
+                        imageUrls = message.imageUrls,
+                        onImageClick = { url ->
+                            navController.navigate("detail_image_screen/${Uri.encode(url)}")
+                        }
+                    )
+                }
+            }
+
+            // Scroll to bottom button
+            if (showScrollToBottomButton) {
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            lazyListState.animateScrollToItem(0)
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 16.dp)
+                        .background(Color.Gray.copy(alpha = 0.7f), CircleShape)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.icon_arrow_dow),
+                        contentDescription = "Scroll to Bottom",
+                        tint = Color.White
                     )
                 }
             }
@@ -322,7 +471,17 @@ fun ChatScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Button(
-                            onClick = { /* Handle report and block */ },
+                            onClick = {
+                                viewModelProfile.blockUser(userOtherId,
+                                    onSuccess = {
+                                        Toast.makeText(LocalContext.current, "Người dùng đã bị chặn!", Toast.LENGTH_SHORT).show()
+                                        navController.popBackStack() // Navigate back after blocking
+                                    },
+                                    onFailure = { e ->
+                                        Toast.makeText(LocalContext.current, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.Red
                             ),
@@ -349,7 +508,9 @@ fun ChatScreen(
 
 @Composable
 fun MessageInputBar(
-    onSendClick: (String) -> Unit
+    onSendClick: (String) -> Unit,
+    onImageSendClick: () -> Unit,
+    onCameraClick: () -> Unit
 ) {
     var message by remember { mutableStateOf("") }
 
@@ -366,11 +527,14 @@ fun MessageInputBar(
             modifier = Modifier
                 .size(43.dp)
                 .background(Color(0xFF00C78A), CircleShape)
-                .clickable { /* Open Camera Action */ },
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { onCameraClick() },
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = painterResource(R.drawable.camera), // hoặc dùng icon riêng nếu có
+                painter = painterResource(R.drawable.camera),
                 contentDescription = "Camera",
                 tint = Color.White,
                 modifier = Modifier.size(32.dp)
@@ -394,20 +558,10 @@ fun MessageInputBar(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Emoji Icon
-                    Icon(
-                        painter = painterResource(R.drawable.emoticon_cool_outline),
-                        contentDescription = "Emoji",
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clickable { /* Open Emoji Picker */ }
-                    )
-
                     Spacer(modifier = Modifier.width(8.dp))
-
-                    // Send hoặc Open Folder Icon
+                    // Send or Open Gallery Icon
                     Icon(
-                        painter = if (message.isBlank()) painterResource(R.drawable.gallery) else painterResource( R.drawable.send_circle),
+                        painter = if (message.isBlank()) painterResource(R.drawable.gallery) else painterResource(R.drawable.send_circle),
                         contentDescription = if (message.isBlank()) "Open Gallery" else "Send",
                         modifier = Modifier
                             .size(32.dp)
@@ -416,10 +570,10 @@ fun MessageInputBar(
                                     onSendClick(message)
                                     message = ""
                                 } else {
-                                    // Open Gallery Action
+                                    onImageSendClick()
                                 }
                             },
-                        tint = if (message.isBlank()) Color.Black else Color.Red
+                        tint = if (message.isBlank()) Color.Black else colorResource(R.color.azure)
                     )
                 }
             },
@@ -428,14 +582,19 @@ fun MessageInputBar(
     }
 }
 
-
 @Composable
 fun ItemsMesg(
     isSender: Boolean,
     profileImageUrl: String,
+    profileImageSender: String,
     message: String,
-    timestamp: String
+    timestamp: String,
+    imageUrls: List<String> = emptyList(),
+    onImageClick: (String) -> Unit
 ) {
+    var isLoadingImages by remember { mutableStateOf(imageUrls.isNotEmpty()) }
+    var loadedImageCount by remember { mutableStateOf(0) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -449,36 +608,97 @@ fun ItemsMesg(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape),
-                contentScale = ContentScale.Crop
-
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.BottomEnd
             )
             Spacer(modifier = Modifier.width(8.dp))
         }
 
         Column(
+            modifier = Modifier
+                .fillMaxWidth(0.7f)
+                .background(Color.Transparent)
+                .padding(4.dp),
             horizontalAlignment = if (isSender) Alignment.End else Alignment.Start
         ) {
-            Box(
-                modifier = Modifier
-                    .background(
-                        color = if (isSender) Color(0xFF00C78A) else Color(0xFFF0F0F0),
-                        shape = RoundedCornerShape(
-                            topStart = 16.dp,
-                            topEnd = 16.dp,
-                            bottomStart = if (isSender) 16.dp else 0.dp,
-                            bottomEnd = if (isSender) 0.dp else 16.dp
-                        )
-                    )
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = message,
-                    color = if (isSender) Color.White else Color.Black,
-                    fontSize = 14.sp
-                )
+            if (imageUrls.isNotEmpty()) {
+                val columns = if (imageUrls.size > 1) 3 else 1
+                val imageSize = if (imageUrls.size > 1) 100.dp else 200.dp
+                val rows = (imageUrls.size + columns - 1) / columns
+                val gridHeight = if (imageUrls.size > 1) {
+                    ((imageSize + 4.dp) * rows).coerceAtMost(300.dp)
+                } else {
+                    imageSize
+                }
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(gridHeight)
+                ) {
+                    if (isLoadingImages) {
+                        ShimmerMessageItem(isSender = isSender)
+                    }
+                    
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(columns),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(imageUrls.size) { index ->
+                            AsyncImage(
+                                model = imageUrls[index],
+                                contentDescription = "Message Image",
+                                modifier = Modifier
+                                    .size(imageSize)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        onImageClick(imageUrls[index])
+                                    },
+                                contentScale = ContentScale.Crop,
+                                onLoading = { isLoadingImages = true },
+                                onSuccess = {
+                                    loadedImageCount++
+                                    if (loadedImageCount == imageUrls.size) {
+                                        isLoadingImages = false
+                                    }
+                                },
+                                onError = {
+                                    loadedImageCount++
+                                    if (loadedImageCount == imageUrls.size) {
+                                        isLoadingImages = false
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            if (message.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = if (isSender) Color(0xFF00C78A) else Color(0xFFF0F0F0),
+                            shape = RoundedCornerShape(
+                                topStart = if (isSender) 16.dp else 0.dp,
+                                topEnd = if (isSender) 0.dp else 16.dp,
+                                bottomStart = 16.dp,
+                                bottomEnd = 16.dp,
+                            )
+                        )
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = message,
+                        color = if (isSender) Color.White else Color.Black,
+                        fontSize = 14.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
 
             Text(
                 text = timestamp,
@@ -491,14 +711,15 @@ fun ItemsMesg(
         if (isSender) {
             Spacer(modifier = Modifier.width(8.dp))
             AsyncImage(
-                model = profileImageUrl,
+                model = profileImageSender,
                 contentDescription = "Profile Image",
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape),
                 contentScale = ContentScale.Crop
-
             )
         }
     }
 }
+
+

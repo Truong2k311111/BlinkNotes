@@ -1,31 +1,25 @@
 package com.example.blinknotes.ui.Auth
 
 import android.app.Activity
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
 import com.example.blinknotes.navigation.Screens
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhoneAuthScreen(authViewModel: AuthViewModel, navController: NavController, navBackStackEntry: NavBackStackEntry) {
     val email = navBackStackEntry.arguments?.getString("email") ?: ""
@@ -39,40 +33,88 @@ fun PhoneAuthScreen(authViewModel: AuthViewModel, navController: NavController, 
     var errorMessage by remember { mutableStateOf("") }
     val activity = LocalContext.current as Activity
 
+    // Function to format phone number
+    fun formatPhoneNumber(number: String): String {
+        return if (number.isNotEmpty()) "+84${number.trimStart('0')}" else ""
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Phone Authentication", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Text(
+            text = "Xác thực số điện thoại",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = "Vui lòng nhập số điện thoại của bạn để tiếp tục",
+            fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(32.dp))
 
         if (!isOtpSent) {
-            TextField(
+            OutlinedTextField(
                 value = phoneNumber,
-                onValueChange = { phoneNumber = it },
-                label = { Text("Enter phone number (+84...)") },
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                modifier = Modifier.fillMaxWidth()
+                onValueChange = { 
+                    // Only allow numbers
+                    if (it.all { char -> char.isDigit() }) {
+                        phoneNumber = it
+                    }
+                },
+                label = { Text("Số điện thoại") },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Done
+                ),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+                prefix = { Text("+84") }
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
-                    authViewModel.sendOtp(phoneNumber, activity = activity ) { success, message ->
+                    val formattedNumber = formatPhoneNumber(phoneNumber)
+                    authViewModel.sendOtp(formattedNumber, activity = activity) { success, message ->
                         if (success) isOtpSent = true
                         else errorMessage = message
                     }
                 },
-                modifier = Modifier.padding(top = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Send OTP")
+                Text("Gửi mã OTP", fontSize = 16.sp)
             }
         } else {
-            TextField(
+            OutlinedTextField(
                 value = otp,
                 onValueChange = { otp = it },
-                label = { Text("Enter OTP") },
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                modifier = Modifier.fillMaxWidth()
+                label = { Text("Nhập mã OTP") },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                ),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
@@ -82,29 +124,36 @@ fun PhoneAuthScreen(authViewModel: AuthViewModel, navController: NavController, 
                                 email = email,
                                 password = password,
                                 confirmPassword = confirmPassword,
-                                username = userName ,
-                                profileImage ="" ) { success, message ->
+                                username = userName,
+                                profileImage = ""
+                            ) { success, message ->
                                 if (success) {
                                     navController.navigate(Screens.LoginScreen.route)
                                 } else {
                                     errorMessage = message
                                 }
                             }
-                            navController.navigate(Screens.LoginScreen.route)
-
                         } else {
                             errorMessage = message
                         }
                     }
                 },
-                modifier = Modifier.padding(top = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Verify OTP")
+                Text("Xác nhận mã OTP", fontSize = 16.sp)
             }
         }
 
         if (errorMessage.isNotEmpty()) {
-            Text(errorMessage, color = Color.Red, modifier = Modifier.padding(top = 8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 14.sp
+            )
         }
     }
 }

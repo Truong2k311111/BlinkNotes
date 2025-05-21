@@ -14,6 +14,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,7 +77,12 @@ import com.example.blinknotes.ui.Auth.Component.CustomButton
 import com.example.blinknotes.ui.Auth.Component.CustomTextField
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.firestore
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -92,6 +100,7 @@ fun LoginScreen(authViewModel: AuthViewModel, navController: NavController) {
     fun signInWithGoogle(launcher: ManagedActivityResultLauncher<Intent, ActivityResult>) {
         val signInIntent = googleSignInClient.signInIntent
         launcher.launch(signInIntent)
+
     }
     val googleSignInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         authViewModel.handleSignInResult(result, context) { user ->
@@ -100,42 +109,58 @@ fun LoginScreen(authViewModel: AuthViewModel, navController: NavController) {
                 popUpTo(Graph.AUTHENTICATION) { inclusive = true }
             }
         }
+
     }
     Scaffold { paddingValues ->
-        ContentLoginScreen(
-            onclickLogin = { email, password ->
-                authViewModel.loginUser(email, password) { success, message ->
-                    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return@loginUser
-
-                    if (success) {
-                        navController.navigate(Graph.HOME) {
-                            popUpTo(Graph.AUTHENTICATION) { inclusive = true }
+            Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ){
+            Image(
+                painter = painterResource(id = R.drawable.bgr_login),
+                contentDescription = "Background",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White),
+                contentScale = ContentScale.Crop,
+            )
+            ContentLoginScreen(
+                onclickLogin = { email, password ->
+                    authViewModel.loginUser(email, password) { success, message ->
+                        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return@loginUser
+                        if (success) {
+                            navController.navigate(Graph.HOME) {
+                                popUpTo(Graph.AUTHENTICATION) { inclusive = true }
+                            }
                         }
                     }
-                }
                 },
 
-            onClickNavigation = {
-                navController.navigate(Screens.RegisterScreen.route)
-            },
-            loginGoogle = {
-                signInWithGoogle(googleSignInLauncher)
-            },
-            onPrivacyClick = {},
-            onTermsClick = {},
-            modifier = Modifier.padding(paddingValues),
-            authViewModel = authViewModel,
-            navController = navController,
-            onclickReSetPass = { email ->
-                if (email.isNotEmpty()) {
-                    authViewModel.sendPasswordResetEmail(email,context)
-                } else {
-                    Toast.makeText(context, "Vui lòng nhập email trước khi đặt lại mật khẩu!", Toast.LENGTH_SHORT).show()
+                onClickNavigation = {
+                    navController.navigate(Screens.RegisterScreen.route)
+                },
+                loginGoogle = {
+                    signInWithGoogle(googleSignInLauncher)
+
+                },
+                onPrivacyClick = {},
+                onTermsClick = {},
+                modifier = Modifier.padding(paddingValues),
+                authViewModel = authViewModel,
+                navController = navController,
+                onclickReSetPass = { email ->
+                    if (email.isNotEmpty()) {
+                        authViewModel.sendPasswordResetEmail(email,context)
+                    } else {
+                        Toast.makeText(context, "Vui lòng nhập email trước khi đặt lại mật khẩu!", Toast.LENGTH_SHORT).show()
+                    }
+
                 }
 
-            }
+            )
+        }
 
-        )
     }
 }
 @OptIn(ExperimentalMaterial3Api::class)
@@ -158,50 +183,33 @@ fun ContentLoginScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .verticalScroll(rememberScrollState()),
+            .background( Color.White , shape = RoundedCornerShape(topEnd = 32.dp, topStart = 32.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
-        ViewPagerLoginScreen(3000L)
-        Spacer(modifier = Modifier.height(8.dp))
-        ViewPagerLoginScreen(5000L)
-
-        Text(
-            text = "Chia sẻ những khoảnh khắc đáng nhớ trên Blink Notes",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(vertical = 16.dp)
-        )
-
         CustomTextField(
             value = email,
             onValueChange = { email = it },
             placeholder = "Địa chỉ Email",
             keyboardType = KeyboardType.Email
         )
-
         Spacer(modifier = Modifier.height(8.dp))
-
         CustomTextField(
             value = password,
             onValueChange = { password = it },
             placeholder = "Mật khẩu",
             isPassword = true
         )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
+        Spacer(modifier = Modifier.height(8.dp))
         if (errorMessage.isNotEmpty()) {
             Text(text = errorMessage, color = Color.Red)
         }
-
         CustomButton(text = "Tiếp tục", color = Color.Red) {
             onclickLogin(email, password)
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         CustomButton(text = "Tiếp tục bằng Google", color = Color.LightGray, hasIcon = true) {
             loginGoogle()
@@ -213,6 +221,8 @@ fun ContentLoginScreen(
             fontStyle = FontStyle.Italic,
             modifier = Modifier
                 .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
                     onClick = {
                         onclickReSetPass(email)
                     }

@@ -1,5 +1,6 @@
 package com.example.blinknotes.ui.detaill
 
+import android.net.Uri
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import com.example.blinknotes.R
@@ -105,10 +106,12 @@ import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.blinknotes.navigation.Screens
 import com.example.blinknotes.ui.Auth.AuthViewModel
+import com.example.blinknotes.ui.Auth.images
 import com.example.blinknotes.ui.home.ExploreScreenViewModel
 import com.example.blinknotes.ui.home.LoadingAnimation
 import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.ui.home.User
+import com.example.blinknotes.ui.notify.NotifyViewModel
 import com.example.blinknotes.ui.profile.ProfileScreenViewModel
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
@@ -120,7 +123,9 @@ fun DetaillScreen(navController: NavController,
                   postId: String,
                   userId:String,
                   viewModelDetail: DetailScreenViewModel = viewModel(),
-                  ) {
+                  viewModelNotify: NotifyViewModel = viewModel()
+
+) {
 
     var post by remember { mutableStateOf<Post?>(null) }
     val scrollState = rememberScrollState()
@@ -184,7 +189,8 @@ fun DetaillScreen(navController: NavController,
                             Screens.ProfileScreen.route + "/${post?.userId}"
                         )
                     }
-                }
+                },
+                viewModelNotify = viewModelNotify
 
             )
         }
@@ -215,7 +221,10 @@ fun DetaillScreen(navController: NavController,
                         pageCount = post!!.imageUrls.size,
                         caption = post!!.caption,
                         content = post!!.content,
-                        time = timestamp
+                        time = timestamp,
+                        onclickImage = { imageUrl ->
+                        navController.navigate("detail_image_screen/${Uri.encode(imageUrl)}")
+                        }
                     )
                 }
                 item {
@@ -325,6 +334,7 @@ fun ContentDetail(
     caption: String,
     content: String,
     time: String,
+    onclickImage : (String) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { pageCount })
 
@@ -347,6 +357,11 @@ fun ContentDetail(
                     contentDescription = null,
                     contentScale = ContentScale.Crop, // Sử dụng Crop thay vì Fit
                     modifier = Modifier.fillMaxSize()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                        ){
+                            onclickImage(imageUrls[page])                        }
                 )
             }
 
@@ -615,6 +630,8 @@ fun CommentItems(
                     color = colorResource(R.color.black),
                     modifier = Modifier
                         .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
                             onClick = {
                                 isCommenting = true
                                 currentParentCommentId = commentId
@@ -656,6 +673,8 @@ fun CommentItems(
                 modifier = Modifier
                     .padding(start = 150.dp)
                     .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
                         onClick = {
                             showReplies = !showReplies
                         }
@@ -792,7 +811,9 @@ fun HeaderDetaill(
     username: String,
     viewModel: DetailScreenViewModel = viewModel(),
     idUserOfPost: String,
-    click: () -> Unit
+    click: () -> Unit,
+    viewModelNotify: NotifyViewModel = viewModel()
+
 ) {
     val currentUser = FirebaseAuth.getInstance().currentUser
     val userId = currentUser?.uid ?: ""
@@ -844,7 +865,7 @@ fun HeaderDetaill(
                 color = Color.Black,
                 modifier = Modifier
                     .padding(start = 8.dp)
-                    .fillMaxWidth(0.4f)
+                    .fillMaxWidth(0.7f)
                     .wrapContentHeight()
                     .clickable {
                         click()
@@ -884,6 +905,7 @@ fun HeaderDetaill(
                             showSheet = true
                         } else {
                             viewModel.toggleFollow(userId, idUserOfPost)
+
                         }
                     }
                 ) {
@@ -910,17 +932,6 @@ fun HeaderDetaill(
                 }
             }
 
-        IconButton(
-            onClick = { /* Thêm logic Search */ },
-            modifier = Modifier
-                .size(30.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "Search",
-                tint = Color.Black
-            )
-        }
         }
         Divider(
             modifier = Modifier

@@ -34,6 +34,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+         isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "1.8"
@@ -46,7 +47,23 @@ android {
     }
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/INDEX.LIST",
+                "mozilla/public-suffix-list.txt"
+            )
+        }
+    }
+    configurations.all {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "io.grpc") {
+                useVersion("1.62.2") // hoặc phiên bản tương thích với Firebase bạn đang dùng
+            }
         }
     }
 }
@@ -107,6 +124,32 @@ dependencies {
     implementation ("com.google.guava:guava:31.0.1-android")
     implementation ("com.google.android.gms:play-services-safetynet:18.0.1")
 
+
+
     implementation("com.vanniktech:emoji-google:0.15.0") // Emoji của Google
     implementation("com.vanniktech:emoji-ios:0.15.0")   // Emoji iOS (nếu muốn)
+
+    implementation ("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.github.bumptech.glide:glide:4.15.1")
+    implementation("com.github.bumptech.glide:okhttp3-integration:4.15.1")
+    implementation("com.github.bumptech.glide:annotations:4.15.1")
+    implementation ("com.google.firebase:firebase-bom:32.7.4")
+
+    implementation ("com.google.code.gson:gson:2.8.9")
+    implementation ("com.google.firebase:firebase-database:20.3.0")
+    implementation ("com.google.firebase:firebase-analytics:21.6.1")
+
+    // Firebase Cloud Messaging
+    implementation ("com.google.firebase:firebase-messaging:23.4.1")
+
+    implementation ("com.google.firebase:firebase-common")
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.35.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    implementation("io.grpc:grpc-core:1.62.2")
+    implementation ("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation ("com.squareup.retrofit2:converter-gson:2.9.0") // Để parse JSON
+    implementation("com.squareup.retrofit2:converter-moshi:2.9.0")
+
+
+
 }

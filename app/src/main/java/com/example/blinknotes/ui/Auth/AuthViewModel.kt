@@ -23,6 +23,7 @@ import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.concurrent.TimeUnit
 import com.google.firebase.auth.*
+import com.google.firebase.messaging.FirebaseMessaging
 
 class AuthViewModel : ViewModel() {
     private val authRepository = AuthRepository()
@@ -31,7 +32,26 @@ class AuthViewModel : ViewModel() {
     private lateinit var resendToken: PhoneAuthProvider.ForceResendingToken
 
     fun loginUser(email: String, password: String, callback: (Boolean, String) -> Unit) {
-        authRepository.loginUser(email, password, callback)
+        authRepository.loginUser(email, password) { success, message ->
+            if (success) {
+                // Get and update FCM token after successful login
+                FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val token = task.result
+                        val userId = FirebaseAuth.getInstance().currentUser?.uid
+                        if (userId != null) {
+                            FirebaseFirestore.getInstance().collection("users")
+                                .document(userId)
+                                .update("fcmToken", token)
+                                .addOnFailureListener { e ->
+                                    Log.e("FCM", "Error updating FCM token", e)
+                                }
+                        }
+                    }
+                }
+            }
+            callback(success, message)
+        }
     }
 
     fun registerUser(
@@ -142,10 +162,38 @@ class AuthViewModel : ViewModel() {
             auth.signInWithCredential(credential)
                 .addOnCompleteListener { authResult ->
                     if (authResult.isSuccessful) {
+                        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                val token = task.result
+                                val userId = FirebaseAuth.getInstance().currentUser?.uid
+                                if (userId != null) {
+                                    FirebaseFirestore.getInstance().collection("users")
+                                        .document(userId)
+                                        .update("fcmToken", token)
+                                        .addOnFailureListener { e ->
+                                            Log.e("FCM", "Error updating FCM token", e)
+                                        }
+                                }
+                            }
+                        }
                         val user = authResult.result?.user
                         if (user != null) {
-                            checkAndAddUser(user, context)
-                            onSuccess(user)
+                            // ✅ Lấy ID token từ Firebase
+                            user.getIdToken(true).addOnCompleteListener { tokenTask ->
+                                if (tokenTask.isSuccessful) {
+                                    val token = tokenTask.result?.token
+
+                                    // ✅ Lưu token vào SharedPreferences
+                                    val sharedPreferences = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
+                                    sharedPreferences.edit().putString("firebase_token", token).apply()
+
+                                    // ✅ Gọi callback thành công
+                                    checkAndAddUser(user, context)
+                                    onSuccess(user)
+                                } else {
+                                    Toast.makeText(context, "Không thể lấy token", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         }
                     } else {
                         Toast.makeText(context, "Đăng nhập thất bại!", Toast.LENGTH_SHORT).show()
@@ -154,7 +202,16 @@ class AuthViewModel : ViewModel() {
         } catch (e: ApiException) {
             Toast.makeText(context, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+        val sharedPreferences = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
+        val savedToken = sharedPreferences.getString("firebase_token", null)
+        if (savedToken != null) {
+            Log.d("Authtoken", "Saved token: $savedToken")
+        } else {
+            Log.d("Auth", "No token found in SharedPreferences")
+        }
+
     }
+
 
     fun sendPasswordResetEmail(email: String, context: Context) {
         val auth = FirebaseAuth.getInstance()

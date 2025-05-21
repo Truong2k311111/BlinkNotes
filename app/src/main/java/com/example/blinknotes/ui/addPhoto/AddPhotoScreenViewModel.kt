@@ -36,6 +36,9 @@ class AddPhotoScreenViewModel: ViewModel() {
         _selectedImages.value = _selectedImages.value+uris
     }
 
+    fun removeSelectedImage(uri: Uri) {
+        _selectedImages.value = _selectedImages.value.filter { it != uri }
+    }
     fun uploadImagesToFirebase( caption: String, content: String,visibility: String,status: String ,context: Context, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             _isLoading.value = true
@@ -64,6 +67,25 @@ class AddPhotoScreenViewModel: ViewModel() {
                 }
             }
         }
+    }
+    private suspend fun addDraft(
+        userId: String,
+        caption: String,
+        content: String,
+        visibility: String,
+        imageUris: List<String>
+    ) {
+        val newDraftRef = db.collection("drafts").document()
+        val draft = hashMapOf(
+            "draftId" to newDraftRef.id,
+            "userId" to userId,
+            "caption" to caption,
+            "content" to content,
+            "createdAt" to System.currentTimeMillis(),
+            "imageUris" to imageUris,
+            "visibility" to visibility
+        )
+        newDraftRef.set(draft).await()
     }
 
     private suspend fun addPost(
