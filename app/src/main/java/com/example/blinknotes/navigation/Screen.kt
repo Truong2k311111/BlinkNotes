@@ -4,10 +4,10 @@ package com.example.blinknotes.navigation
 sealed class Screens(val route: String) {
     object HomeScreen: Screens("home_screen/{userId}")
     object DetaillScreen: Screens("details")
-    object AddPhotoScreen: Screens("add_photo")
+    object AddPhotoScreen: Screens("add_photo?postId={postId}")
     object LoginScreen: Screens("login_screen")
     object RegisterScreen: Screens("register_screen")
-    object SearchScreen : Screens("search_screen")
+    object SearchScreen : Screens("search_screen?query={query}")
     object ProfileScreen: Screens("profile_screen")
     object NotifyScreen: Screens("notify_screen")
     object PlashScreen: Screens("plash_screen")
@@ -30,5 +30,12 @@ sealed class Screens(val route: String) {
     object StatusScreen: Screens("status_screen")
     object LinkScreen: Screens("linkScreen")
     object PrivacySettingsScreen: Screens("privacySettingsScreen")
+
+    // Admin Screens
+    object AdminDashboard: Screens("admin_dashboard")
+    object AdminUserManagement: Screens("admin_users")
+    object AdminPostManagement: Screens("admin_posts")
+    object AdminReportManagement: Screens("admin_reports")
+    object SystemNotification : Screens("system_notification")
 
 }

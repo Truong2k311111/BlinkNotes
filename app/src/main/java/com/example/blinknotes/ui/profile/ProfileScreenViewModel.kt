@@ -52,16 +52,19 @@ class ProfileScreenViewModel : ViewModel() {
     private val _userAll = MutableStateFlow<List<User>>(emptyList())
     val userAll: StateFlow<List<User>> = _userAll
 
-        private val _isPrivateAccount = MutableStateFlow(false)
-        val isPrivateAccount: StateFlow<Boolean> = _isPrivateAccount
+    private val _isPrivateAccount = MutableStateFlow(false)
+    val isPrivateAccount: StateFlow<Boolean> = _isPrivateAccount
 
-        private val _blockedUsers = MutableStateFlow<List<User>>(emptyList())
-        val blockedUsers: StateFlow<List<User>> = _blockedUsers
+    private val _blockedUsers = MutableStateFlow<List<User>>(emptyList())
+    val blockedUsers: StateFlow<List<User>> = _blockedUsers
 
-        init {
-            loadPrivacySettings()
-            fetchAllUser()
-        }
+    private val _savedPostsWithUsers = mutableStateListOf<PostWithUser>()
+    val savedPostsWithUsers: List<PostWithUser> get() = _savedPostsWithUsers
+
+    init {
+        loadPrivacySettings()
+        fetchAllUser()
+    }
 
     fun fetchAllUser() {
         db.collection("users")
@@ -88,16 +91,16 @@ class ProfileScreenViewModel : ViewModel() {
         }
     }
 
-        private fun loadPrivacySettings() {
-            currentUserId?.let { userId ->
-                db.collection("users").document(userId).get()
-                    .addOnSuccessListener { document ->
-                        _isPrivateAccount.value = document.getBoolean("isPrivate") ?: false
-                        val blockedUserIds = document.get("blockedUsers") as? List<String> ?: emptyList()
-                        loadBlockedUsers(blockedUserIds)
-                    }
-            }
+    private fun loadPrivacySettings() {
+        currentUserId?.let { userId ->
+            db.collection("users").document(userId).get()
+                .addOnSuccessListener { document ->
+                    _isPrivateAccount.value = document.getBoolean("isPrivate") ?: false
+                    val blockedUserIds = document.get("blockedUsers") as? List<String> ?: emptyList()
+                    loadBlockedUsers(blockedUserIds)
+                }
         }
+    }
 
     private fun loadBlockedUsers(userIds: List<String>) {
         if (userIds.isEmpty()) {
@@ -118,12 +121,12 @@ class ProfileScreenViewModel : ViewModel() {
             }
     }
 
-        fun setPrivateAccount(isPrivate: Boolean) {
-            currentUserId?.let { userId ->
-                db.collection("users").document(userId).update("isPrivate", isPrivate)
-                    .addOnSuccessListener { _isPrivateAccount.value = isPrivate }
-            }
+    fun setPrivateAccount(isPrivate: Boolean) {
+        currentUserId?.let { userId ->
+            db.collection("users").document(userId).update("isPrivate", isPrivate)
+                .addOnSuccessListener { _isPrivateAccount.value = isPrivate }
         }
+    }
     fun unblockUser(userId: String) {
         try {
             Log.d("ProfileScreenViewModel", "Attempting to unblock user with ID: $userId")
@@ -149,7 +152,7 @@ class ProfileScreenViewModel : ViewModel() {
             Log.e("ProfileScreenViewModel", "Error in unblockUser: ${e.message}")
         }
     }
-        fun fetchUser(userId: String) {
+    fun fetchUser(userId: String) {
         db.collection("users").document(userId).get()
             .addOnSuccessListener { document ->
                 _user.value = document.toObject(User::class.java)
@@ -280,6 +283,7 @@ class ProfileScreenViewModel : ViewModel() {
     fun getUserPosts(userId: String, lastPost: Post? = null, callback: (List<Post>) -> Unit) {
         FirebaseFirestore.getInstance().collection("posts")
             .whereEqualTo("userId", userId)
+            .whereNotEqualTo("status", "draft")
             .get()
             .addOnSuccessListener { result ->
                 val postsList = result.documents.mapNotNull { doc ->
@@ -468,8 +472,8 @@ class ProfileScreenViewModel : ViewModel() {
                 val draftList = result.documents.mapNotNull { doc ->
                     try {
                         val draftId = doc.id
-                        val imageUris = doc.get("imageUris") as? List<String> ?: emptyList()
-                        val firstImageUrl = imageUris.firstOrNull() ?: ""
+                        val imageUrls = doc.get("imageUrls") as? List<String> ?: emptyList()
+                        val firstImageUrl = imageUrls.firstOrNull() ?: ""
                         val caption = doc.getString("caption") ?: ""
                         val content = doc.getString("content") ?: ""
                         val createdAt = doc.getLong("createdAt") ?: 0L
@@ -479,7 +483,7 @@ class ProfileScreenViewModel : ViewModel() {
                             id = draftId,
                             userId = userId,
                             userIdCmt = "",
-                            imageUrls = imageUris,
+                            imageUrls = imageUrls,
                             firstImageUrl =  firstImageUrl,
                             caption = caption,
                             content = content,
@@ -514,4 +518,109 @@ class ProfileScreenViewModel : ViewModel() {
             }
     }
 
+    fun loadSavedPosts(userId: String) {
+        val db = FirebaseFirestore.getInstance()
+        db.collection("saves")
+            .whereEqualTo("userId", userId)
+            .get()
+            .addOnSuccessListener { savedSnapshot ->
+                val savedPostIds = savedSnapshot.documents.mapNotNull { it.getString("postId") }
+                if (savedPostIds.isEmpty()) {
+                    _savedPostsWithUsers.clear()
+                    return@addOnSuccessListener
+                }
+                db.collection("posts")
+                    .whereIn(FieldPath.documentId(), savedPostIds)
+                    .get()
+                    .addOnSuccessListener { postsSnapshot ->
+                        val postsList = mutableListOf<Post>()
+                        val userIdsSet = mutableSetOf<String>()
+                        for (doc in postsSnapshot.documents) {
+                            try {
+                                val id = doc.id
+                                val userId = doc.getString("userId") ?: ""
+                                val userIdCmt = doc.getString("userIdCmt") ?: ""
+                                val imageUrls = doc.get("imageUrls") as? List<String> ?: emptyList()
+                                val firstImageUrl = imageUrls.firstOrNull() ?: ""
+                                val caption = doc.getString("caption") ?: ""
+                                val content = doc.getString("content") ?: ""
+                                val createdAt = doc.getLong("createdAt") ?: 0L
+                                val likesCount = doc.getLong("likesCount")?.toInt() ?: 0
+                                val commentsCount = doc.getLong("commentsCount")?.toInt() ?: 0
+                                val visibility = doc.getString("visibility") ?: "public"
+                                val tags = doc.get("tags") as? List<String> ?: emptyList()
+                                postsList.add(
+                                    Post(
+                                        id, userId, userIdCmt, imageUrls, firstImageUrl, caption,
+                                        content, createdAt, likesCount, commentsCount, visibility, tags
+                                    )
+                                )
+                                if (userId.isNotBlank()) userIdsSet.add(userId)
+                                if (userIdCmt.isNotBlank()) userIdsSet.add(userIdCmt)
+                            } catch (e: Exception) {
+                                Log.e("SavedPostLoad", "Error parsing post: ${e.message}")
+                            }
+                        }
+                        if (userIdsSet.isEmpty()) {
+                            val result = postsList.map { PostWithUser(it, null) }
+                            _savedPostsWithUsers.clear()
+                            _savedPostsWithUsers.addAll(result)
+                            return@addOnSuccessListener
+                        }
+                        val userMap = mutableMapOf<String, User?>()
+                        val userFetchCount = userIdsSet.size
+                        var usersFetched = 0
+                        userIdsSet.forEach { id ->
+                            getUser(id) { user ->
+                                userMap[id] = user
+                                usersFetched++
+                                if (usersFetched == userFetchCount) {
+                                    val result = postsList.map { post ->
+                                        val user = userMap[post.userId] ?: userMap[post.userIdCmt]
+                                        PostWithUser(post, user)
+                                    }
+                                    _savedPostsWithUsers.clear()
+                                    _savedPostsWithUsers.addAll(result)
+                                }
+                            }
+                        }
+                    }
+            }
+    }
+
+    fun deleteSavedPost(postId: String, onSuccess: () -> Unit) {
+        val userId = currentUserId ?: return
+        db.collection("saves")
+            .whereEqualTo("userId", userId)
+            .whereEqualTo("postId", postId)
+            .get()
+            .addOnSuccessListener { result ->
+                val batch = db.batch()
+                result.documents.forEach { doc ->
+                    batch.delete(doc.reference)
+                }
+                batch.commit().addOnSuccessListener {
+                    _savedPostsWithUsers.removeAll { it.post.id == postId }
+                    onSuccess()
+                }
+            }
+    }
+
+    fun deleteLikedPost(postId: String, onSuccess: () -> Unit) {
+        val userId = currentUserId ?: return
+        db.collection("likes")
+            .whereEqualTo("userId", userId)
+            .whereEqualTo("postId", postId)
+            .get()
+            .addOnSuccessListener { result ->
+                val batch = db.batch()
+                result.documents.forEach { doc ->
+                    batch.delete(doc.reference)
+                }
+                batch.commit().addOnSuccessListener {
+                    _postsWithUsers.removeAll { it.post.id == postId }
+                    onSuccess()
+                }
+            }
+    }
 }

@@ -1,7 +1,9 @@
 package com.example.blinknotes.ui.Auth
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -75,6 +77,7 @@ import com.example.blinknotes.navigation.Graph
 import com.example.blinknotes.navigation.Screens
 import com.example.blinknotes.ui.Auth.Component.CustomButton
 import com.example.blinknotes.ui.Auth.Component.CustomTextField
+import com.example.blinknotes.ui.home.User
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.firebase.Firebase
@@ -85,6 +88,12 @@ import com.google.firebase.firestore.firestore
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.google.android.gms.auth.api.signin.SignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.tasks.OnCompleteListener
+import com.google.android.gms.tasks.Task
+import com.google.android.gms.common.api.ApiException
+import com.google.firebase.auth.GoogleAuthProvider
 
 @Composable
 fun LoginScreen(authViewModel: AuthViewModel, navController: NavController) {
@@ -100,16 +109,16 @@ fun LoginScreen(authViewModel: AuthViewModel, navController: NavController) {
     fun signInWithGoogle(launcher: ManagedActivityResultLauncher<Intent, ActivityResult>) {
         val signInIntent = googleSignInClient.signInIntent
         launcher.launch(signInIntent)
-
     }
-    val googleSignInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        authViewModel.handleSignInResult(result, context) { user ->
-            Toast.makeText(context, "Chào ${user.displayName}", Toast.LENGTH_SHORT).show()
-            navController.navigate(Graph.HOME) {
-                popUpTo(Graph.AUTHENTICATION) { inclusive = true }
-            }
-        }
 
+    val googleSignInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            handleGoogleSignInResult(task, navController, context)
+        } else {
+            Log.w("TAG", "Google sign in failed: ${result.resultCode}")
+            Toast.makeText(context, "Đăng nhập bằng Google thất bại", Toast.LENGTH_SHORT).show()
+        }
     }
     Scaffold { paddingValues ->
             Column(
@@ -377,3 +386,100 @@ val images = listOf(
 //ContentLoginScreen(onclickLogin = {}, onClickNavigation = {}, modifier = Modifier, onNoticeClick = {}, onTermsClick = {}, onPrivacyClick = {})
 //    //ViewPagerLoginScreen()
 //}
+
+private fun handleGoogleSignInResult(
+    task: Task<GoogleSignInAccount>,
+    navController: NavController,
+    context: Context
+) {
+    try {
+        val account = task.getResult(ApiException::class.java)
+        firebaseAuthWithGoogle(account.idToken!!, navController, context)
+    } catch (e: ApiException) {
+        Log.w("TAG", "Google sign in failed", e)
+        Toast.makeText(context, "Đăng nhập thất bại: ${e.message}", Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun firebaseAuthWithGoogle(
+    idToken: String,
+    navController: NavController,
+    context: Context
+) {
+    val credential = GoogleAuthProvider.getCredential(idToken, null)
+    val auth = FirebaseAuth.getInstance()
+    auth.signInWithCredential(credential)
+        .addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val user = auth.currentUser
+                if (user != null) {
+                    // Kiểm tra xem người dùng đã tồn tại trong Firestore chưa
+                    val db = FirebaseFirestore.getInstance()
+                    db.collection("users").document(user.uid)
+                        .get()
+                        .addOnSuccessListener { document ->
+                            if (document.exists()) {
+                                // Người dùng đã tồn tại, kiểm tra quyền admin
+                                val isAdmin = document.getBoolean("isAdmin") ?: false
+                                if (isAdmin) {
+                                    // Lưu trạng thái admin vào SharedPreferences
+                                    val prefs = context.getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
+                                    prefs.edit().putBoolean("is_admin", true).apply()
+                                    
+                                    // Chuyển hướng đến trang admin
+                                    navController.navigate(Screens.AdminDashboard.route) {
+                                        popUpTo(Graph.AUTHENTICATION) { inclusive = true }
+                                    }
+                                } else {
+                                    // Không phải admin, chuyển về trang chủ
+                                    navController.navigate(Graph.HOME) {
+                                        popUpTo(Graph.AUTHENTICATION) { inclusive = true }
+                                    }
+                                }
+                            } else {
+                                // Người dùng mới, tạo tài khoản với quyền user thường
+                                val newUser = User(
+                                    userId = user.uid,
+                                    username = user.displayName ?: "User",
+                                    email = user.email ?: "",
+                                    profileImage = user.photoUrl?.toString() ?: "",
+                                    createdAt = System.currentTimeMillis(),
+                                    isAdmin = false,
+                                    followersCount = 0,
+                                    followingCount = 0
+                                )
+
+                                db.collection("users").document(user.uid)
+                                    .set(newUser)
+                                    .addOnSuccessListener {
+                                        // Chuyển hướng về trang chủ
+                                        navController.navigate(Graph.HOME) {
+                                            popUpTo(Graph.AUTHENTICATION) { inclusive = true }
+                                        }
+                                    }
+                                    .addOnFailureListener { e ->
+                                        Toast.makeText(
+                                            context,
+                                            "Lỗi khi tạo tài khoản: ${e.message}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                            }
+                        }
+                        .addOnFailureListener { e ->
+                            Toast.makeText(
+                                context,
+                                "Lỗi khi kiểm tra tài khoản: ${e.message}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                }
+            } else {
+                Toast.makeText(
+                    context,
+                    "Đăng nhập thất bại",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+}

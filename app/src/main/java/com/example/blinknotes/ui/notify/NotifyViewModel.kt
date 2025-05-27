@@ -28,6 +28,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.example.blinknotes.ui.notify.notificationSysTem.NotificationType
+import com.example.blinknotes.ui.notify.notificationSysTem.SystemNotification
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.Query
@@ -42,6 +44,7 @@ import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import java.util.UUID
 import kotlin.collections.mutableListOf
+import kotlin.text.set
 
 
 data class Message(
@@ -501,4 +504,26 @@ class NotifyViewModel : ViewModel() {
 
             }
     }
+    fun createSystemNotification(
+        type: NotificationType,
+        title: String,
+        content: String,
+        userId: String,
+        reportedBy: String = ""
+    ) {
+        val notification = SystemNotification(
+            id = UUID.randomUUID().toString(),
+            title = title,
+            content = content,
+            type = type,
+            createdAt = System.currentTimeMillis(),
+            isRead = false
+        )
+
+        val db = FirebaseFirestore.getInstance()
+        db.collection("system_notifications")
+            .document(notification.id)
+            .set(notification)
+    }
 }
+

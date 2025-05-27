@@ -119,6 +119,7 @@ object FirestoreHelper {
         val chunkedLists = listUser.chunked(10) // Chia listUser thành các nhóm nhỏ (tối đa 10 phần tử)
         val allPosts = mutableListOf<Post>()
         var completedQueries = 0
+        Log.d("FirestoreListofusers", "List of users: $chunkedLists")
 
         chunkedLists.forEach { chunk ->
             FirebaseFirestore.getInstance().collection("posts")

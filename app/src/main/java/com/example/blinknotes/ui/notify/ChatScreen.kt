@@ -84,10 +84,16 @@ import com.example.blinknotes.ui.theme.ShimmerProfileItem
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.TextButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.Surface
-import com.example.blinknotes.ui.profile.ProfileScreenViewModel
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.example.blinknotes.ui.notify.notificationSysTem.NotificationType
+import com.example.blinknotes.ui.notify.notificationSysTem.SystemNotification
+import java.util.UUID
+import com.google.firebase.firestore.FirebaseFirestore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,8 +107,6 @@ fun ChatScreen(
     viewModel: NotifyViewModel = viewModel(),
     userOtherId: String,
     viewModelDetail: DetailScreenViewModel = viewModel(),
-    viewModelProfile: ProfileScreenViewModel = viewModel()
-
 ) {
     val context = LocalContext.current
     var showReportSheet by remember { mutableStateOf(false) }
@@ -177,22 +181,84 @@ fun ChatScreen(
     // Effect to handle initial loading
     LaunchedEffect(Unit) {
         viewModel.listenForMessages(currentUserId = currentUserId.toString(), otherUserId = userOtherId)
+        // Simulate initial loading
+        coroutineScope.launch {
+            lazyListState.scrollToItem(0) // Scroll to the bottom (newest message)
+        }
         isInitialLoad = false
     }
 
     // Effect to handle scroll to bottom for new messages
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty() && !isInitialLoad) {
+        if (!isInitialLoad && messages.isNotEmpty()) {
             coroutineScope.launch {
-                lazyListState.animateScrollToItem(0)
+                lazyListState.animateScrollToItem(messages.size - 1)
             }
         }
     }
 
     // Effect to handle scroll button visibility
     LaunchedEffect(lazyListState.firstVisibleItemIndex, lazyListState.isScrollInProgress) {
-        val isAtBottom = lazyListState.firstVisibleItemIndex == 0
+        val isAtBottom = lazyListState.firstVisibleItemIndex + lazyListState.layoutInfo.visibleItemsInfo.size >= lazyListState.layoutInfo.totalItemsCount
         showScrollToBottomButton = !isAtBottom
+    }
+
+    // Function to create system notification
+    fun createSystemNotification(
+        type: NotificationType,
+        title: String,
+        content: String,
+        userId: String,
+        reportedBy: String = ""
+    ) {
+        val notification = SystemNotification(
+            id = UUID.randomUUID().toString(),
+            title = title,
+            content = content,
+            type = type,
+            createdAt = System.currentTimeMillis(),
+            isRead = false
+        )
+
+        val db = FirebaseFirestore.getInstance()
+        db.collection("system_notifications")
+            .document(notification.id)
+            .set(notification)
+    }
+
+    // Update block user function
+    fun blockUser(userId: String, username: String) {
+        val db = FirebaseFirestore.getInstance()
+        db.collection("users").document(userId)
+            .update("isBlocked", true)
+            .addOnSuccessListener {
+                // Create system notification
+                createSystemNotification(
+                    type = NotificationType.USER_BLOCKED,
+                    title = "Người dùng bị chặn",
+                    content = "Người dùng $username đã bị chặn",
+                    userId = userId
+                )
+                Toast.makeText(context, "Đã chặn người dùng", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    // Update report user function
+    fun reportUser(userId: String, username: String, reason: String) {
+        val db = FirebaseFirestore.getInstance()
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        
+        if (currentUser != null) {
+            // Create system notification
+            createSystemNotification(
+                type = NotificationType.USER_BLOCKED,
+                title = "Báo cáo người dùng",
+                content = "Người dùng $username bị báo cáo với lý do: $reason",
+                userId = userId,
+                reportedBy = currentUser.uid
+            )
+            Toast.makeText(context, "Đã gửi báo cáo", Toast.LENGTH_SHORT).show()
+        }
     }
 
     Scaffold(
@@ -333,29 +399,50 @@ fun ChatScreen(
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues).imePadding()) {
             Divider(color = Color.LightGray, modifier = Modifier.height(0.5.dp))
-            // Main chat content
-            LazyColumn(
-                state = lazyListState,
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                reverseLayout = true
-            ) {
-                items(messages.reversed()) { message ->
-                    val isSender = message.senderId == currentUserId
-                    val timestamp = viewModelDetail.getTimeAgo(message.timestamp)
-                    
-                    ItemsMesg(
-                        isSender = isSender,
-                        profileImageUrl = if (isSender) imageProfile else avatarRes,
-                        message = message.content,
-                        timestamp = timestamp,
-                        profileImageSender = imageProfile,
-                        imageUrls = message.imageUrls,
-                        onImageClick = { url ->
-                            navController.navigate("detail_image_screen/${Uri.encode(url)}")
-                        }
-                    )
+            if (loadingMessages) {
+                LazyColumn {
+                    items(5) {
+                        ShimmerMessageItem(isSender = false)
+                    }
                 }
+            }
+                // Main chat content
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isInitialLoad) {
+                    } else {
+                        items(messages) { message ->
+                            val isSender = message.senderId == currentUserId
+                            val timestamp = viewModelDetail.getTimeAgo(message.timestamp)
+                            val isNewMessage =
+                                !loadedMessageIds.contains(message.timestamp.toString())
+
+                            // Add message ID to loaded set
+                            LaunchedEffect(message.timestamp) {
+                                loadedMessageIds = loadedMessageIds + message.timestamp.toString()
+                            }
+
+                            if (isNewMessage) {
+                                ShimmerMessageItem(isSender = isSender)
+                            } else {
+                                ItemsMesg(
+                                    isSender = isSender,
+                                    profileImageUrl = if (isSender) imageProfile else avatarRes,
+                                    message = message.content,
+                                    timestamp = timestamp,
+                                    profileImageSender = imageProfile,
+                                    imageUrls = message.imageUrls,
+                                    onImageClick = { url ->
+                                        navController.navigate("detail_image_screen/${Uri.encode(url)}")
+                                    }
+                                )
+                            }
+                        }
+                    }
+
             }
 
             // Scroll to bottom button
@@ -363,7 +450,7 @@ fun ChatScreen(
                 IconButton(
                     onClick = {
                         coroutineScope.launch {
-                            lazyListState.animateScrollToItem(0)
+                            lazyListState.animateScrollToItem(messages.size - 1)
                         }
                     },
                     modifier = Modifier
@@ -382,123 +469,109 @@ fun ChatScreen(
     }
 
     if (showReportSheet) {
+        var reportReason by remember { mutableStateOf("") }
+
         ModalBottomSheet(
-            onDismissRequest = {
-                showReportSheet = false
-                selectedReason = ""
-                               },
-            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-            containerColor = Color.White,
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
+            onDismissRequest = { showReportSheet = false },
+            sheetState = rememberModalBottomSheetState()
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .heightIn(min = 100.dp, max = 500.dp),
-                horizontalAlignment = Alignment.CenterHorizontally // căn giữa hết
+                    .padding(16.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp, bottom = 8.dp)
-                ) {
-                    Text(
-                        text = "Vui lòng chọn lý do",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .clickable {
-                                showReportSheet = false
-                                selectedReason = ""}
-                            .padding(end = 8.dp)
-                    )
-                }
-
                 Text(
-                    text = "Cuộc trò chuyện của bạn sẽ được gửi BlinkNotes xem xét. Chúng tôi sẽ không thông báo cho tài khoản mà bạn báo cáo.",
-                    fontSize = 14.sp,
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
+                    text = "Báo cáo người dùng",
+                    style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
-                    items(reportReasons) { reason ->
-                        Row(
+                OutlinedTextField(
+                    value = reportReason,
+                    onValueChange = { reportReason = it },
+                    singleLine = true,
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        focusedBorderColor = Color(0xFF00C78A),
+                        unfocusedBorderColor = Color.LightGray,
+                        cursorColor = Color(0xFF00C78A)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    placeholder = { Text("Nhập lý do báo cáo") },
+                    label = { Text("Lý do báo cáo") },
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear",
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = (reason == selectedReason),
-                                    onClick = { selectedReason = reason }
-                                )
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = reason,
-                                fontSize = 14.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                            RadioButton(
-                                selected = (reason == selectedReason),
-                                onClick = { selectedReason = reason },
-                                colors = RadioButtonDefaults.colors(
-                                    selectedColor = Color.Red,
-                                    unselectedColor = Color.Red
-                                )
-                            )
-                        }
-                    }
-                }
+                                .clickable { reportReason = "" }
+                                .padding(8.dp)
+                        )
+                    },
+                    shape = RoundedCornerShape(18.dp),
+                    maxLines = 1,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp),
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(R.drawable.flag),
+                            contentDescription = "Report",
+                            tint = Color(0xFF00C78A)
+                        )
+                    },
+                    isError = reportReason.isBlank(),
 
-                if (selectedReason.isNotEmpty()) {
-                    Column(
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = { showReportSheet = false },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFF5F5F5)),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        .widthIn(min = 80.dp)
+                        .background(Color.LightGray, RoundedCornerShape(50.dp))
+                        .border(1.dp, Color.Gray, RoundedCornerShape(50.dp))
+                        .alpha(0.8f)
+                        .clickable { showReportSheet = false }
+                            .padding(end = 8.dp),
+
                     ) {
-                        Button(
-                            onClick = {
-                                viewModelProfile.blockUser(userOtherId,
-                                    onSuccess = {
-                                        Toast.makeText(LocalContext.current, "Người dùng đã bị chặn!", Toast.LENGTH_SHORT).show()
-                                        navController.popBackStack() // Navigate back after blocking
-                                    },
-                                    onFailure = { e ->
-                                        Toast.makeText(LocalContext.current, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Red
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Báo cáo và chặn", color = Color.White)
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = { /* Handle report only */ },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.LightGray
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Báo cáo", color = Color.Black)
-                        }
+                        Text("Hủy",
+                            color = Color.Black,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                            )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (reportReason.isNotBlank()) {
+                                reportUser(userOtherId, username, reportReason)
+                                showReportSheet = false
+                            }
+                        },
+                        modifier = Modifier
+                            .widthIn(min = 80.dp)
+                            .background(Color(0xFFAC0404), RoundedCornerShape(50.dp))
+                            ,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF920015),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(50.dp),
+                        enabled = reportReason.isNotBlank(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+
+                    ) {
+                        Text("Gửi báo cáo",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            color = Color.White,
+                        )
                     }
                 }
             }
@@ -512,73 +585,97 @@ fun MessageInputBar(
     onImageSendClick: () -> Unit,
     onCameraClick: () -> Unit
 ) {
+    var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp, start = 12.dp, end = 12.dp)
-            .background(color = colorResource(R.color.gainsboro), RoundedCornerShape(50.dp))
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Camera Icon
-        Box(
+    if (isLoading) {
+        ShimmerEffect { brush ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp, start = 12.dp, end = 12.dp)
+                    .background(brush, RoundedCornerShape(50.dp))
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(43.dp)
+                        .background(brush, CircleShape)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .background(brush, RoundedCornerShape(20.dp))
+                )
+            }
+        }
+    } else {
+        Row(
             modifier = Modifier
-                .size(43.dp)
-                .background(Color(0xFF00C78A), CircleShape)
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
-                ) { onCameraClick() },
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(bottom = 16.dp, start = 12.dp, end = 12.dp)
+                .background(color = colorResource(R.color.gainsboro), RoundedCornerShape(50.dp))
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                painter = painterResource(R.drawable.camera),
-                contentDescription = "Camera",
-                tint = Color.White,
-                modifier = Modifier.size(32.dp)
+            // Camera Icon
+            Box(
+                modifier = Modifier
+                    .size(43.dp)
+                    .background(Color(0xFF00C78A), CircleShape)
+                    .clickable { onCameraClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.camera),
+                    contentDescription = "Camera",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // TextField
+            TextField(
+                value = message,
+                onValueChange = { message = it },
+                placeholder = { Text("Nhập tin nhắn...") },
+                modifier = Modifier.weight(1f),
+                colors = TextFieldDefaults.textFieldColors(
+                    backgroundColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                trailingIcon = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        // Send or Open Gallery Icon
+                        Icon(
+                            painter = if (message.isBlank()) painterResource(R.drawable.gallery) else painterResource(R.drawable.send_circle),
+                            contentDescription = if (message.isBlank()) "Open Gallery" else "Send",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clickable {
+                                    if (message.isNotBlank()) {
+                                        onSendClick(message)
+                                        message = ""
+                                    } else {
+                                        onImageSendClick()
+                                    }
+                                },
+                            tint = if (message.isBlank()) Color.Black else Color.Red
+                        )
+                    }
+                },
+                singleLine = true
             )
         }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        // TextField
-        TextField(
-            value = message,
-            onValueChange = { message = it },
-            placeholder = { Text("Nhập tin nhắn...") },
-            modifier = Modifier.weight(1f),
-            colors = TextFieldDefaults.textFieldColors(
-                backgroundColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
-            ),
-            trailingIcon = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    // Send or Open Gallery Icon
-                    Icon(
-                        painter = if (message.isBlank()) painterResource(R.drawable.gallery) else painterResource(R.drawable.send_circle),
-                        contentDescription = if (message.isBlank()) "Open Gallery" else "Send",
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clickable {
-                                if (message.isNotBlank()) {
-                                    onSendClick(message)
-                                    message = ""
-                                } else {
-                                    onImageSendClick()
-                                }
-                            },
-                        tint = if (message.isBlank()) Color.Black else colorResource(R.color.azure)
-                    )
-                }
-            },
-            singleLine = true
-        )
     }
 }
 
@@ -594,6 +691,10 @@ fun ItemsMesg(
 ) {
     var isLoadingImages by remember { mutableStateOf(imageUrls.isNotEmpty()) }
     var loadedImageCount by remember { mutableStateOf(0) }
+
+    if (isLoadingImages) {
+        ShimmerMessageItem(isSender = isSender)
+    }
 
     Row(
         modifier = Modifier
@@ -636,10 +737,6 @@ fun ItemsMesg(
                         .fillMaxWidth()
                         .height(gridHeight)
                 ) {
-                    if (isLoadingImages) {
-                        ShimmerMessageItem(isSender = isSender)
-                    }
-                    
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(columns),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),

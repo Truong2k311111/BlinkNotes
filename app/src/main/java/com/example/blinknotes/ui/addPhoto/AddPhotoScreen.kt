@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -29,14 +30,18 @@ import androidx.compose.material.Scaffold
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextField
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -67,6 +72,8 @@ import com.example.blinknotes.R
 import com.example.blinknotes.ui.home.LoadingAnimation
 import android.net.Uri
 import androidx.compose.runtime.LaunchedEffect
+import com.example.blinknotes.ui.home.User
+import com.example.blinknotes.ui.home.ExploreScreenViewModel
 
 @Composable
 fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenViewModel = viewModel()) {
@@ -75,6 +82,7 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
     val context = LocalContext.current
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedImages by viewModel.selectedImages.collectAsState()
+    val uploadedImageUrls by viewModel.uploadedImageUrls.collectAsState()
     var showVisibilitySheet by remember { mutableStateOf(false) }
     var selectedVisibility by remember { mutableStateOf("public") }
     var selectedStatus by remember { mutableStateOf("active") }
@@ -83,15 +91,41 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
         rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
             viewModel.addSelectedImages(uris)
         }
-    val draftId = navController.previousBackStackEntry?.arguments?.getString("draftId")
-    LaunchedEffect(draftId) {
+
+    // Lấy postId (draftId) từ arguments cho đúng với route add_photo?postId={postId}
+    // Sửa: Nếu không truyền postId hoặc postId là null/rỗng/"null" thì coi là đăng mới
+    val draftIdRaw = navController.currentBackStackEntry?.arguments?.getString("postId")
+    var isEditing by remember { mutableStateOf(false) }
+    val draftId = draftIdRaw?.takeIf { !it.isNullOrEmpty() && it != "null" }
+
+    var showBlockUserSheet by remember { mutableStateOf(false) }
+    var blockedUserIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var searchUserText by remember { mutableStateOf("") }
+    val exploreViewModel: ExploreScreenViewModel = viewModel()
+    val users by exploreViewModel.users.collectAsState()
+    val userList = users.values.toList()
+
+    LaunchedEffect(draftIdRaw) {
         if (draftId != null) {
+            // Kiểm tra tài liệu có tồn tại không, nếu không thì không phải là edit
             viewModel.loadDraft(draftId) { draft ->
-                caption = draft.caption
-                content = draft.content
-                selectedVisibility = draft.visibility
-                viewModel.updateSelectedImages(draft.imageUris.map { Uri.parse(it) })
+                if (draft.id.isNotBlank()) {
+                    caption = draft.caption
+                    content = draft.content
+                    selectedVisibility = draft.visibility
+                    viewModel.updateSelectedImages(emptyList())
+                    isEditing = true
+                } else {
+                    // Nếu không tìm thấy draft, coi như đăng mới
+                    viewModel.clearUploadedImageUrls()
+                    viewModel.updateSelectedImages(emptyList())
+                    isEditing = false
+                }
             }
+        } else {
+            viewModel.clearUploadedImageUrls()
+            viewModel.updateSelectedImages(emptyList())
+            isEditing = false
         }
     }
     Box(modifier = Modifier.fillMaxSize()) {
@@ -105,8 +139,8 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
+                Row(
+                    modifier = Modifier.weight(1f),
                     horizontalArrangement = Arrangement.Start
                 ) {
                     IconButton(
@@ -120,8 +154,8 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                         )
                     }
                 }
-                    Row(
-                        modifier = Modifier.weight(1f),
+                Row(
+                    modifier = Modifier.weight(1f),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Box(
@@ -129,18 +163,18 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                             .weight(1f)
                             .clip(RoundedCornerShape(16.dp))
                             .background(color = colorResource(R.color.white))
-                                .clickable {
-                                    viewModel.uploadImagesToFirebase(
-                                        caption = caption,
-                                        content = content,
-                                        visibility = selectedVisibility,
-                                        context = context,
-                                        status = selectedStatusDraft
-                                    ) {
-                                            navController.popBackStack()
-                                    }
-                                },
-                        ) {
+                            .clickable {
+                                viewModel.uploadImagesToFirebase(
+                                    caption = caption,
+                                    content = content,
+                                    visibility = selectedVisibility,
+                                    context = context,
+                                    status = selectedStatusDraft
+                                ) {
+                                    navController.popBackStack()
+                                }
+                            },
+                    ) {
                         Text(
                             text = "Bản nháp",
                             color = Color.Black,
@@ -152,13 +186,16 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .weight(0.9f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(color = colorResource(R.color.azure))
-                            .clickable {
-                                    if (selectedImages.isNotEmpty()) {
+                    // Nút Đăng hoặc Cập nhật
+                    if (!isEditing) {
+                        // Đăng mới
+                        Box(
+                            modifier = Modifier
+                                .weight(0.9f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(color = colorResource(R.color.azure))
+                                .clickable {
+                                    if (selectedImages.isNotEmpty() || uploadedImageUrls.isNotEmpty()) {
                                         viewModel.uploadImagesToFirebase(
                                             caption = caption,
                                             content = content,
@@ -175,19 +212,60 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
-                            }
+                                }
                         ) {
-                        Text(
-                            text = "Đăng",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            Text(
+                                text = "Đăng",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .align(alignment = Alignment.Center)
+                            )
+                        }
+                    } else {
+                        // Cập nhật
+                        Box(
                             modifier = Modifier
-                                .padding(8.dp)
-                                .align(alignment = Alignment.Center)
-                        )
+                                .weight(0.9f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(color = colorResource(R.color.azure))
+                                .clickable {
+                                    if (selectedImages.isNotEmpty() || uploadedImageUrls.isNotEmpty()) {
+                                        val allImageUrls = uploadedImageUrls + selectedImages.map { it.toString() }
+                                        viewModel.updatePost(
+                                            postId = draftId ?: "",
+                                            caption = caption,
+                                            content = content,
+                                            imageUrls = allImageUrls,
+                                            visibility = selectedVisibility,
+                                            status = "active",
+                                            context = context
+                                        ) {
+                                            navController.popBackStack()
+                                        }
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Vui lòng chọn ảnh!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                        ) {
+                            Text(
+                                text = "Cập nhật",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .align(alignment = Alignment.Center)
+                            )
                         }
                     }
+                }
             }
             if (isLoading) {
                 Box(
@@ -238,10 +316,12 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (selectedVisibility == "public")
-                                    "Mọi người có thể xem và bình luận"
-                                else
-                                    "Chỉ mình tôi",
+                                text = when (selectedVisibility) {
+                                    "public" -> "Công khai"
+                                    "private" -> "Riêng tư"
+                                    "friends" -> "Bạn bè"
+                                    else -> "Công khai"
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -280,16 +360,32 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                     .fillMaxHeight(0.3f)
                     .padding(8.dp)
             ) {
+                // Hiển thị ảnh đã upload (URL)
+                items(uploadedImageUrls) { url ->
+                    ItemsImage(
+                        painter = rememberAsyncImagePainter(url),
+                        onEdit = { },
+                        onDelete = {
+                            // Xóa ảnh đã upload khỏi danh sách
+                            viewModel.setUploadedImageUrls(uploadedImageUrls - url)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(2.5f / 3.5f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                // Hiển thị ảnh mới chọn (Uri local)
                 items(selectedImages) { uri ->
                     ItemsImage(
                         painter = rememberAsyncImagePainter(uri),
-                            onEdit = { },
+                        onEdit = { },
                         onDelete = {
                             viewModel.updateSelectedImages(selectedImages - uri)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                                .aspectRatio(2.5f / 3.5f)
+                            .aspectRatio(2.5f / 3.5f)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
@@ -473,5 +569,3 @@ fun ItemsImage(
         }
     }
 }
-
-

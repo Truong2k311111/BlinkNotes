@@ -34,6 +34,15 @@ data class Post(
     val visibility: String = "public",
     val tags: List<String> = emptyList(),
     val status: String = "active",
+    val isReported: Boolean = false,
+    val isHidden: Boolean = false,
+    val isBlocked: Boolean = false,
+    val isPinned: Boolean = false,
+    val isSaved: Boolean = false,
+    val isLiked: Boolean = false,
+    val isCommented: Boolean = false,
+    val isShared: Boolean = false,
+
 )
 data class User(
     val userId: String = "",
@@ -65,6 +74,20 @@ data class User(
     val instagramLink: String? = null,
     val twitterLink: String? = null,
     val blockedUsers : List<String> = emptyList(),
+    val isAdmin: Boolean = false
+)
+
+data class Report(
+    val id: String = "",
+    val reporterId: String = "",
+    val reportedType: String = "", // "post" or "user"
+    val reportedId: String = "", // postId or userId
+    val content: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+    val status: String = "pending", // "pending", "resolved", "dismissed"
+    val resolvedAt: Long? = null,
+    val resolvedBy: String? = null,
+    val resolution: String? = null
 )
 
 class ExploreScreenViewModel : ViewModel() {
@@ -76,6 +99,9 @@ class ExploreScreenViewModel : ViewModel() {
 
     private val _users = MutableStateFlow<Map<String, User?>>(emptyMap())
     val users: StateFlow<Map<String, User?>> = _users
+
+    private val _usersAll = MutableStateFlow<Map<String, User?>>(emptyMap())
+    val usersAll: StateFlow<Map<String, User?>> = _usersAll
     private val _usersListBlock = MutableStateFlow<Map<String, User?>>(emptyMap())
     val usersListBlock: StateFlow<Map<String, User?>> = _usersListBlock
 
@@ -100,7 +126,7 @@ class ExploreScreenViewModel : ViewModel() {
             loadMorePosts()
         }
     }
-    suspend  fun getAllUser() {
+      fun getAllUser() {
             try {
                 FirebaseFirestore.getInstance().collection("users")
                     .get()
@@ -112,6 +138,7 @@ class ExploreScreenViewModel : ViewModel() {
                             blockedUsers.contains(currentUserId)
                         }.map { it.id }
                         _listUser.value = blockedByUsers
+                        _usersAll.value = users.associateBy { it.userId }
                         Log.d("FirestoreUser", "Users loaded: ${_listUser.value}")
                         }
             } catch (e: Exception) {
@@ -158,23 +185,20 @@ class ExploreScreenViewModel : ViewModel() {
                 callback(null)
             }
     }
-
  suspend   fun loadMorePosts() {
         if (isLoading) return
         isLoading = true
-
             try {
                 delay(800L) // Reduced delay for better UX
 //            getAllPosts(listUser = _listUser.value, lastVisiblePost)
                 getAllPosts2(lastVisiblePost)
-               // getAllPostsExcludingUsers(listUser = _listUser.value,lastVisiblePost)
+              // getAllPostsExcludingUsers(listUser = _listUser.value,lastVisiblePost)
             { newPosts ->
                 if (newPosts.isNotEmpty()) {
                         // Lọc ra các bài viết đã được tải trước đó
                         val uniqueNewPosts = newPosts.filter { post ->
                             !loadedPostIds.contains(post.id)
                         }
-
                         if (uniqueNewPosts.isNotEmpty()) {
                             lastVisiblePost = uniqueNewPosts.last()
                             val currentPosts = _posts.value
@@ -247,6 +271,7 @@ class ExploreScreenViewModel : ViewModel() {
             }
         }
     }
+
     fun togglePostLike(postId: String, userId: String) {
         viewModelScope.launch {
             try {
@@ -302,4 +327,57 @@ class ExploreScreenViewModel : ViewModel() {
             }
         }
     }
+    fun togglePostSave(postId: String, userId: String) {
+        viewModelScope.launch {
+            try {
+                val postRef = FirebaseFirestore.getInstance().collection("posts").document(postId)
+                val saveRef = FirebaseFirestore.getInstance()
+                    .collection("saves")
+                    .document("${userId}_${postId}")
+                // Kiểm tra trạng thái lưu hiện tại
+                saveRef.get().addOnSuccessListener { document ->
+                    if (document.exists()) {
+                        // Nếu đã lưu thì bỏ lưu
+                        saveRef.delete()
+                        postRef.update("isSaved", false)
+                            .addOnSuccessListener {
+                                // Cập nhật trạng thái lưu trong danh sách bài viết
+                                val currentPosts = _posts.value
+                                val updatedPosts = currentPosts.map { post ->
+                                    if (post.id == postId) {
+                                        post.copy(isSaved = false)
+                                    } else {
+                                        post
+                                    }
+                                }
+                                _posts.value = updatedPosts
+                            }
+                    } else {
+                        // Nếu chưa lưu thì lưu
+                        saveRef.set(mapOf(
+                            "userId" to userId,
+                            "postId" to postId,
+                            "timestamp" to FieldValue.serverTimestamp()
+                        ))
+                        postRef.update("isSaved", true)
+                            .addOnSuccessListener {
+                                // Cập nhật trạng thái lưu trong danh sách bài viết
+                                val currentPosts = _posts.value
+                                val updatedPosts = currentPosts.map { post ->
+                                    if (post.id == postId) {
+                                        post.copy(isSaved = true)
+                                    } else {
+                                        post
+                                    }
+                                }
+                                _posts.value = updatedPosts
+                            }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ExploreScreenViewModel", "Error toggling like", e)
+            }
+        }
+    }
+
 }

@@ -1,6 +1,7 @@
 package com.example.blinknotes.ui.detaill
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -9,6 +10,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.blinknotes.data.helper.FirestoreHelper
 import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.ui.home.User
+import com.example.blinknotes.ui.notify.notificationSysTem.NotificationType
+import com.example.blinknotes.ui.notify.notificationSysTem.SystemNotification
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.launch
@@ -19,6 +23,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.google.firebase.firestore.FieldValue
 import kotlinx.coroutines.tasks.await
+import java.util.UUID
+import kotlin.text.set
 
 data class Comment(
     val id: String = "",
@@ -141,6 +147,23 @@ class DetailScreenViewModel : ViewModel() {
                     callback(null)
                 }
         }
+    }
+
+    /**
+     * Lấy thông tin user từ Firestore bằng blinkNotesId.
+     */
+    fun getUserByBlinkNotesId(blinkNotesId: String, callback: (User?) -> Unit) {
+        db.collection("users")
+            .whereEqualTo("blinkNotesId", "@$blinkNotesId")
+            .get()
+            .addOnSuccessListener { result ->
+                val user = result.documents.firstOrNull()?.toObject(User::class.java)?.copy(userId = result.documents.firstOrNull()?.id ?: "")
+                callback(user)
+            }
+            .addOnFailureListener { e ->
+                Log.e("DetailScreenViewModel", "Error fetching user by blinkNotesId: ${e.message}")
+                callback(null)
+            }
     }
 
     // Kiểm tra trạng thái like của user cho một comment
@@ -371,4 +394,74 @@ class DetailScreenViewModel : ViewModel() {
             }
         }
     }
+    fun reportPost(postId: String, reason: String) {
+        val db = FirebaseFirestore.getInstance()
+        val currentUser = FirebaseAuth.getInstance().currentUser
+
+        if (currentUser != null) {
+            // Create system notification
+            createSystemNotification(
+                type = NotificationType.POST_REPORTED,
+                title = "Báo cáo bài viết",
+                content = "Bài viết bị báo cáo với lý do: $reason",
+                postId = postId,
+                reportedBy = currentUser.uid
+            )
+        }
+    }
+    fun createSystemNotification(
+        type: NotificationType,
+        title: String,
+        content: String,
+        postId: String,
+        reportedBy: String = ""
+    ) {
+        val notification = SystemNotification(
+            id = UUID.randomUUID().toString(),
+            title = title,
+            content = content,
+            type = type,
+            createdAt = System.currentTimeMillis(),
+            isRead = false
+        )
+
+        val db = FirebaseFirestore.getInstance()
+        db.collection("system_notifications")
+            .document(notification.id)
+            .set(notification)
+    }
+
+    // Cập nhật nội dung comment
+    fun updateComment(commentId: String, newContent: String) {
+        db.collection("comments").document(commentId)
+            .update("content", newContent)
+            .addOnSuccessListener {
+                // Cập nhật lại danh sách comments trong UI
+                comments = comments.map { comment ->
+                    if (comment.id == commentId) comment.copy(content = newContent) else comment
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("DetailScreenViewModel", "Error updating comment: ${e.message}")
+            }
+    }
+
+    // Xóa comment
+    fun deleteComment(commentId: String) {
+        db.collection("comments").document(commentId)
+            .delete()
+            .addOnSuccessListener {
+                // Xóa comment khỏi danh sách comments trong UI (bao gồm cả replies)
+                fun removeCommentRecursive(list: List<Comment>): List<Comment> {
+                    return list.filter { it.id != commentId }.map { comment ->
+                        comment.copy(replies = removeCommentRecursive(comment.replies))
+                    }
+                }
+                comments = removeCommentRecursive(comments)
+            }
+            .addOnFailureListener { e ->
+                Log.e("DetailScreenViewModel", "Error deleting comment: ${e.message}")
+            }
+    }
+
 }

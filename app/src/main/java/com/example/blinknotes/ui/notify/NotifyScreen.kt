@@ -320,15 +320,15 @@ fun NotifyContent(
             )
         }
 
-        item {
-            FixedItemRow(
-                title = "Những Follower mới",
-                subtitle = "Thông báo mới nhất",
-                onClick = { },
-                drawRes = R.drawable.account_multiple_plus,
-                color = colorResource(R.color.deeppink)
-            )
-        }
+//        item {
+//            FixedItemRow(
+//                title = "Những Follower mới",
+//                subtitle = "Thông báo mới nhất",
+//                onClick = { },
+//                drawRes = R.drawable.account_multiple_plus,
+//                color = colorResource(R.color.deeppink)
+//            )
+//        }
         item {
             FixedItemRow(
                 title = "Hoạt động",
@@ -342,7 +342,7 @@ fun NotifyContent(
             FixedItemRow(
                 title = "Thông báo hệ thống",
                 subtitle = "Thông báo hệ thống mới nhất",
-                onClick = { },
+                onClick = { navController.navigate(Screens.SystemNotification.route) },
                 drawRes = R.drawable.package_variant,
                 color = colorResource(R.color.darkslategray)
             )

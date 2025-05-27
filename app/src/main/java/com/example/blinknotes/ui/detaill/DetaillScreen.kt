@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,12 +43,15 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -56,6 +60,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
@@ -65,6 +70,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -88,6 +94,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -101,6 +108,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import androidx.wear.compose.material3.ScreenStage
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
@@ -115,10 +123,17 @@ import com.example.blinknotes.ui.notify.NotifyViewModel
 import com.example.blinknotes.ui.profile.ProfileScreenViewModel
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.withStyle
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetaillScreen(navController: NavController,
+fun DetaillScreen(navController: NavHostController,
                   viewModel: ExploreScreenViewModel = viewModel(),
                   postId: String,
                   userId:String,
@@ -126,6 +141,9 @@ fun DetaillScreen(navController: NavController,
                   viewModelNotify: NotifyViewModel = viewModel()
 
 ) {
+    var showReportSheet by remember { mutableStateOf(false) }
+    var showReportConfirmation by remember { mutableStateOf(false) }
+    var reportReason by remember { mutableStateOf("") }
 
     var post by remember { mutableStateOf<Post?>(null) }
     val scrollState = rememberScrollState()
@@ -173,7 +191,7 @@ fun DetaillScreen(navController: NavController,
                 parentCommentId = userIdCmt.toString(),
                 navController = navController,
                 user = usercommnt,
-                post = post
+                post = post,
             )
                     },
         topBar = {
@@ -190,8 +208,10 @@ fun DetaillScreen(navController: NavController,
                         )
                     }
                 },
-                viewModelNotify = viewModelNotify
-
+                viewModelNotify = viewModelNotify,
+                clickShowReportSheet = {
+                    showReportSheet = true
+                },
             )
         }
     ) { paddingValues ->
@@ -215,7 +235,6 @@ fun DetaillScreen(navController: NavController,
             } else {
                 item {
                     val timestamp = viewModel.getTimeAgo(post!!.createdAt)
-
                     ContentDetail(
                         imageUrls = post!!.imageUrls,
                         pageCount = post!!.imageUrls.size,
@@ -224,7 +243,8 @@ fun DetaillScreen(navController: NavController,
                         time = timestamp,
                         onclickImage = { imageUrl ->
                         navController.navigate("detail_image_screen/${Uri.encode(imageUrl)}")
-                        }
+                        },
+                        navController = navController
                     )
                 }
                 item {
@@ -288,12 +308,14 @@ fun DetaillScreen(navController: NavController,
                         avatarUserComment = user?.profileImage ?: "",
                         isAuthor = comment.isAuthor,
                         userName = user?.username ?: "",
+                        userCommentId = user?.userId ?: "",
                         userId = userId,
                             postId = postId,
                             parentCommentId = null,
                             replies = comment.replies,
                             commentId = comment.id,
-                            likesCount = comment.likes.size
+                            likesCount = comment.likes.size,
+                            navController = navController
                         )
                     }
                 }
@@ -324,7 +346,82 @@ fun DetaillScreen(navController: NavController,
                 }
             }
         }
+        // Add Report Sheet
+        if (showReportSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showReportSheet = false },
+                sheetState = rememberModalBottomSheetState()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Báo cáo bài viết",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
 
+                    OutlinedTextField(
+                        value = reportReason,
+                        onValueChange = { reportReason = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
+                        placeholder = { Text("Nhập lý do báo cáo") },
+                        label = { Text("Lý do báo cáo") }
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = { showReportSheet = false }
+                        ) {
+                            Text("Hủy")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (reportReason.isNotBlank()) {
+                                    showReportConfirmation = true
+                                    showReportSheet = false
+                                }
+                            }
+                        ) {
+                            Text("Gửi báo cáo")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add Report Confirmation Dialog
+        if (showReportConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showReportConfirmation = false },
+                title = { Text("Xác nhận báo cáo") },
+                text = { Text("Bạn có chắc muốn gửi báo cáo này không?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModelDetail.reportPost(postId, reportReason)
+                            showReportConfirmation = false
+                            reportReason = ""
+                        }
+                    ) {
+                        Text("Gửi báo cáo")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showReportConfirmation = false }) {
+                        Text("Hủy")
+                    }
+                }
+            )
+        }
     }
 }
 @Composable
@@ -334,7 +431,8 @@ fun ContentDetail(
     caption: String,
     content: String,
     time: String,
-    onclickImage : (String) -> Unit
+    onclickImage : (String) -> Unit,
+    navController : NavController
 ) {
     val pagerState = rememberPagerState(pageCount = { pageCount })
 
@@ -420,11 +518,13 @@ fun ContentDetail(
                 modifier = Modifier.padding(vertical = 8.dp)
             )
 
-            Text(
+            HashtagText(
                 text = content,
-                fontSize = 16.sp,
-                color = Color.DarkGray,
-                modifier = Modifier.padding(vertical = 8.dp)
+                onHashtagClick = { hashtag ->
+                    // Encode hashtag for navigation
+                    val encoded = URLEncoder.encode(hashtag, StandardCharsets.UTF_8.toString())
+                    navController.navigate("search_screen?query=$encoded")
+                }
             )
 
             Text(
@@ -437,23 +537,65 @@ fun ContentDetail(
     }
 }
 
+// Hàm hiển thị nội dung với hashtag có thể click
+@Composable
+fun HashtagText(
+    text: String,
+    onHashtagClick: (String) -> Unit
+) {
+    val annotatedString = buildAnnotatedString {
+        val regex = Regex("#\\w+")
+        var lastIndex = 0
+        for (match in regex.findAll(text)) {
+            val start = match.range.first
+            val end = match.range.last + 1
+            if (lastIndex < start) {
+                append(text.substring(lastIndex, start))
+            }
+            val hashtag = text.substring(start, end)
+            pushStringAnnotation(tag = "HASHTAG", annotation = hashtag)
+            withStyle(style = SpanStyle(color = Color(0xFF1DA1F2), fontWeight = FontWeight.Bold)) {
+                append(hashtag)
+            }
+            pop()
+            lastIndex = end
+        }
+        if (lastIndex < text.length) {
+            append(text.substring(lastIndex))
+        }
+    }
+    ClickableText(
+        text = annotatedString,
+        style = androidx.compose.ui.text.TextStyle.Default.copy(color = Color.Black),
+        onClick = { offset ->
+            annotatedString.getStringAnnotations(tag = "HASHTAG", start = offset, end = offset)
+                .firstOrNull()?.let { annotation ->
+                    onHashtagClick(annotation.item)
+                }
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommentItems(
     avatarUserComment: String,
     isAuthor: Boolean,
     userName: String,
+    userCommentId: String,
     contentComment: String,
     time: String,
     viewModel: DetailScreenViewModel = viewModel(),
     userId: String,
+    blinkNotesId: String = "",
     postId: String,
     parentCommentId: String? = null,
     replies: List<Comment> = emptyList(),
     isReply: Boolean = false,
     replyChain: List<String> = emptyList(),
     commentId: String = "",
-    likesCount: Int = 0
+    likesCount: Int = 0,
+    navController: NavController? = null // Thêm navController để điều hướng khi click tag
 ) {
     var isFavorite by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -512,10 +654,24 @@ fun CommentItems(
         }
     }
 
+    // Trạng thái sửa comment
+    var isEditing by remember { mutableStateOf(false) }
+    var editText by remember { mutableStateOf(contentComment) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showActionSheet by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = if (isReply) 32.dp else 8.dp, bottom = 6.dp)
+            .combinedClickable(
+                onClick = {},
+                onLongClick = {
+                    if (currentUserId == userId) {
+                        showActionSheet = true
+                    }
+                }
+            )
     ) {
         Row {
             AsyncImage(
@@ -531,80 +687,113 @@ fun CommentItems(
                     .fillMaxWidth()
                     .padding(start = 8.dp, end = (16.dp))
             ) {
-                if (isAuthor) {
-                    if (isReply && parentUserInfo != null) {
-                        // Nếu là reply và là tác giả, hiển thị "username * Tác giả > username cha"
-                    Row {
-                        Text(
-                            text = "$userName * ",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            fontSize = 13.sp,
-                            color = colorResource(R.color.bgr)
-                        )
-                        Text(
-                            text = "Tác giả",
-                            fontSize = 13.sp,
-                            color = colorResource(R.color.tab_line)
-                        )
-                            Text(
-                                text = " > ${parentUserInfo?.username}",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontSize = 13.sp,
-                                color = colorResource(R.color.bgr)
-                            )
-                        }
-                    } else {
-                        // Nếu là tác giả nhưng không phải reply
-                        Row {
-                            Text(
-                                text = "$userName * ",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontSize = 13.sp,
-                                color = colorResource(R.color.bgr)
-                            )
-                            Text(
-                                text = "Tác giả",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontSize = 13.sp,
-                                color = colorResource(R.color.tab_line)
-                            )
-                        }
-                    }
-                } else {
-                    if (isReply && parentUserInfo != null) {
-                        // Nếu là reply, hiển thị "username > username cha"
-                        Log.d("CommentItems", "Displaying reply: $userName > ${parentUserInfo?.username}")
-                        Text(
-                            text = "$userName > ${parentUserInfo?.username}",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontSize = 13.sp,
-                            color = colorResource(R.color.bgr)
-                        )
-                    } else {
-                        Log.d("CommentItems", "Not displaying reply info: isReply=$isReply, parentUserInfo=${parentUserInfo != null}")
+                // Username row with author and reply chain
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = userName,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        fontSize = 13.sp,
-                        color = colorResource(R.color.bgr)
+                        fontWeight = FontWeight.Bold,
+                        color = if (isAuthor) Color(0xFF2196F3) else Color.Black,
+                        fontSize = 15.sp,
+                        modifier = Modifier
+                            .clickable {
+                                if(userCommentId != currentUser?.uid) {
+                                    navController?.navigate(
+                                        Screens.ProfileScreen.route + "/${userCommentId}"
+                                    )
+                                }
+                            }
                     )
+                    if (isAuthor) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "• Tác giả",
+                            color = Color(0xFF2196F3),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    if (replyChain.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "↪ " + replyChain.joinToString(" • "),
+                            color = Color.Gray,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
-                Text(
-                    text = contentComment,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .padding(top = 4.dp),
-                    color = colorResource(R.color.black)
-                )
+                // Hiển thị nút chỉnh sửa và xóa nếu là tác giả của comment
+                if (isEditing) {
+                    // Ô chỉnh sửa comment
+                    OutlinedTextField(
+                        value = editText,
+                        onValueChange = { editText = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = MaterialTheme.colorScheme.surface,
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        placeholder = {
+                            Text(
+                                text = "Chỉnh sửa nội dung",
+                                style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray)
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.LightGray,
+                            cursorColor = MaterialTheme.colorScheme.primary,
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        singleLine = false,
+                        maxLines = 5,
+                        trailingIcon = {
+                            if (editText.isNotBlank()) {
+                                IconButton(onClick = { editText = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Xóa nội dung"
+                                    )
+                                }
+                            }
+                        }
+                    )
+                    Row {
+                        Button(
+                            onClick = {
+                                viewModel.updateComment(commentId, editText)
+                                isEditing = false
+                            },
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) { Text("Lưu") }
+                        Button(
+                            onClick = { isEditing = false }
+                        ) { Text("Hủy") }
+                    }
+                } else {
+                    TagUserText(
+                        text = contentComment,
+                        onTagClick = { blinkNotesId ->
+                            viewModel.getUserByBlinkNotesId(blinkNotesId) { user ->
+                                if (user != null) {
+                                    navController?.navigate(
+                                        Screens.ProfileScreen.route + "/${user.userId}"
+                                    )
+                                } else {
+                                    Log.e("CommentItems", "User not found for BlinkNotes ID: $blinkNotesId")
+                                }
+                            }
+                        }
+                    )
+                }
             }
         }
+
         Row(
             modifier = Modifier
                 .wrapContentHeight()
@@ -782,7 +971,6 @@ fun CommentItems(
 
                     // Lấy thời gian cho reply
                     val replyTime = viewModel.getTimeAgo(reply.createdAt)
-
                     CommentItems(
                         avatarUserComment = replyUserInfo?.profileImage ?: "",
                         isAuthor = reply.isAuthor,
@@ -796,13 +984,131 @@ fun CommentItems(
                         isReply = true,
                         replyChain = newReplyChain,
                         commentId = reply.id,
-                        likesCount = reply.likes.size
+                        likesCount = reply.likes.size,
+                        navController = navController,
+                        userCommentId = reply.userId,
                     )
                 }
             }
         }
+        // BottomSheet sửa/xóa khi long press comment của mình
+        if (showActionSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showActionSheet = false },
+                sheetState = rememberModalBottomSheetState()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp, horizontal = 16.dp)
+                ) {
+                    // Tiêu đề
+                    Text(
+                        text = "Tùy chọn bình luận",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(bottom = 20.dp)
+                    )
+
+                    // Nút chỉnh sửa
+                    RowOptionItem(
+                        text = "Chỉnh sửa",
+                        icon = Icons.Default.Edit,
+                        onClick = {
+                            isEditing = true
+                            showActionSheet = false
+                        }
+                    )
+
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    // Nút xóa
+                    RowOptionItem(
+                        text = "Xóa",
+                        icon = Icons.Default.Delete,
+                        iconTint = Color.Red,
+                        textColor = Color.Red,
+                        onClick = {
+                            showDeleteDialog = true
+                            showActionSheet = false
+                        }
+                    )
+
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    // Nút hủy
+                    RowOptionItem(
+                        text = "Hủy",
+                        icon = Icons.Default.Close,
+                        onClick = {
+                            showActionSheet = false
+                        }
+                    )
+                }
+            }
+        }
+        // Dialog xác nhận xóa comment
+        if (showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("Xóa bình luận") },
+                text = { Text("Bạn có chắc chắn muốn xóa bình luận này không?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteComment(commentId)
+                            showDeleteDialog = false
+                        }
+                    ) { Text("Xóa") }
+                },
+                dismissButton = {
+                    Button(onClick = { showDeleteDialog = false }) { Text("Hủy") }
+                }
+            )
+        }
     }
 }
+
+// --- Hiển thị nội dung comment với tag @username có thể click ---
+@Composable
+fun TagUserText(
+    text: String,
+    onTagClick: (String) -> Unit
+) {
+    val annotatedString = buildAnnotatedString {
+        val regex = Regex("@\\w+")
+        var lastIndex = 0
+        for (match in regex.findAll(text)) {
+            val start = match.range.first
+            val end = match.range.last + 1
+            if (lastIndex < start) {
+                append(text.substring(lastIndex, start))
+            }
+            val tag = text.substring(start, end)
+            // Gắn blinkNotesId (không phải username) vào annotation
+            pushStringAnnotation(tag = "TAG", annotation = tag.removePrefix("@"))
+            withStyle(style = SpanStyle(color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)) {
+                append(tag)
+            }
+            pop()
+            lastIndex = end
+        }
+        if (lastIndex < text.length) {
+            append(text.substring(lastIndex))
+        }
+    }
+    ClickableText(
+        text = annotatedString,
+        style = androidx.compose.ui.text.TextStyle.Default.copy(color = Color.Black),
+        onClick = { offset ->
+            annotatedString.getStringAnnotations(tag = "TAG", start = offset, end = offset)
+                .firstOrNull()?.let { annotation ->
+                    // annotation.item là blinkNotesId
+                    onTagClick(annotation.item)
+                }
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HeaderDetaill(
@@ -812,9 +1118,12 @@ fun HeaderDetaill(
     viewModel: DetailScreenViewModel = viewModel(),
     idUserOfPost: String,
     click: () -> Unit,
-    viewModelNotify: NotifyViewModel = viewModel()
+    viewModelNotify: NotifyViewModel = viewModel(),
+    clickShowReportSheet: () -> Unit = {  }
 
 ) {
+
+
     val currentUser = FirebaseAuth.getInstance().currentUser
     val userId = currentUser?.uid ?: ""
     val followStatus by viewModel.followStatus.collectAsState()
@@ -865,7 +1174,7 @@ fun HeaderDetaill(
                 color = Color.Black,
                 modifier = Modifier
                     .padding(start = 8.dp)
-                    .fillMaxWidth(0.7f)
+                    .fillMaxWidth(0.5f)
                     .wrapContentHeight()
                     .clickable {
                         click()
@@ -881,7 +1190,7 @@ fun HeaderDetaill(
                 color = Color.Black,
                 modifier = Modifier
                     .padding(start = 8.dp)
-                    .fillMaxWidth(0.7f)
+                    .fillMaxWidth(0.5f)
                     .wrapContentHeight()
                     .clickable {
                         click()
@@ -889,12 +1198,13 @@ fun HeaderDetaill(
             )
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.weight(0.5f))
          if (!isOwnPost) {
                 Button(
                     modifier = Modifier
-                        .height(36.dp)
-                        .width(100.dp),
+                    .height(36.dp)
+                        .width(100.dp)
+                        .padding(end = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (currentStatus.isFollowing) Color(0xFFE0E0E0) else Color(0xFF2196F3)
                     ),
@@ -930,6 +1240,14 @@ fun HeaderDetaill(
                         maxLines = 1,
                     )
                 }
+             Icon(
+                 painter = painterResource(R.drawable.flag),
+                 tint = Color.Black,
+                 contentDescription = "Report",
+                 modifier = Modifier
+                     .size(28.dp)
+                     .clickable { clickShowReportSheet()}
+             )
             }
 
         }
@@ -1005,13 +1323,15 @@ fun BottomBarDetail(
     userId: String,
     parentCommentId: String,
     navController: NavController,
-    post: Post? = null
+    post: Post? = null,
 ) {
+
     var comment by remember { mutableStateOf("") }
     var showEmojiPicker by remember { mutableStateOf(false) }
     var isCommenting by remember { mutableStateOf(false) }
     var isShowBottomBar by remember { mutableStateOf(false) }
     var isLiked by remember { mutableStateOf(false) }
+    var isSaved by remember { mutableStateOf(false) }
 
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -1038,6 +1358,35 @@ fun BottomBarDetail(
     LaunchedEffect(postLikeStatus) {
         if (postId.isNotEmpty()) {
             isLiked = postLikeStatus[postId] ?: false
+        }
+    }
+
+    // Lấy danh sách bạn bè hoặc người đã follow (từ user.following và user.followers)
+    val followingIds = user?.following ?: emptyList()
+    val followerIds = user?.followers ?: emptyList()
+    val allUsers by viewModelEx.users.collectAsState()
+    // Lấy unique userId (bạn bè hoặc đang follow)
+    val friendIds = (followingIds + followerIds).distinct().filter { it != user?.userId }
+    val friendUsers = friendIds.mapNotNull { allUsers[it] }
+
+    // Trạng thái hiển thị gợi ý tag
+    var showTagSuggestions by remember { mutableStateOf(false) }
+    var tagQuery by remember { mutableStateOf("") }
+
+    // Hiển thị gợi ý khi nhập @ hoặc @text
+    LaunchedEffect(comment) {
+        // Nếu nhập @ ở bất kỳ đâu trong chuỗi, show gợi ý
+        val regex = Regex("@(\\w*)$")
+        val match = regex.find(comment)
+        if (match != null) {
+            showTagSuggestions = true
+            tagQuery = match.groupValues[1]
+        } else if (comment.endsWith("@")) {
+            showTagSuggestions = true
+            tagQuery = ""
+        } else {
+            showTagSuggestions = false
+            tagQuery = ""
         }
     }
 
@@ -1102,8 +1451,15 @@ fun BottomBarDetail(
                     // Hiển thị số tim từ bài Post
                     Text(text = "${post?.likesCount ?: 0}", fontSize = 12.sp, color = Color.Gray)
                 }
-                IconWithText(R.drawable.chat_processing_outline, "${totalComments}")
-                IconWithText(R.drawable.share_all, "0") // Chưa có tính năng share
+                IconWithText(R.drawable.chat_processing_outline, "${totalComments}", onclickImage = {})
+                IconWithText(R.drawable.share_all, "0", onclickImage = {}) // Chưa có tính năng share
+                IconWithText(R.drawable.content_save_outline,"", onclickImage = {
+                    if (postId.isNotEmpty() && userId.isNotEmpty()) {
+                        viewModelEx.togglePostSave(postId, userId)
+                    }
+                }) // Chưa có tính năng share
+
+
             }
         }
         if (isCommenting || comment.isNotBlank() || showEmojiPicker) {
@@ -1115,67 +1471,107 @@ fun BottomBarDetail(
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AsyncImage(
-                    model = user?.profileImage ?: "",
-                    contentDescription = "Avatar",
-                    modifier = Modifier
-                        .size(35.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop,
-                )
-
-                TextField(
-                    value = comment,
-                    onValueChange = { comment = it },
-                    placeholder = { Text("Viết bình luận...") },
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester)
-                        .padding(start = 8.dp),
-                    singleLine = true,
-                    shape = RoundedCornerShape(24.dp),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        containerColor = Color.White
-                    ),
-                )
-                IconButton(
-                    onClick = {
-                        showEmojiPicker = !showEmojiPicker
-                        if (showEmojiPicker) {
-                            keyboardController?.hide()
-                        } else {
-                            focusRequester.requestFocus()
-                            keyboardController?.show()
+            Column {
+                // Gợi ý tag bạn bè khi nhập @
+                if (showTagSuggestions && friendUsers.isNotEmpty()) {
+                    val filteredFriends = if (tagQuery.isBlank()) friendUsers
+                        else friendUsers.filter { it.username.contains(tagQuery, ignoreCase = true) }
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .background(Color.White)
+                    ) {
+                        items(filteredFriends) { userTag ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        // Thay thế @... bằng @username
+                                        val newComment = comment.replace(Regex("@\\w*$"), "${userTag.blinkNotesId} ")
+                                        comment = newComment
+                                        showTagSuggestions = false
+                                    }
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = userTag.profileImage,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp).clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Text(
+                                    text = userTag.username,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
                         }
-                    },
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(if (showEmojiPicker) R.drawable.keyboard else R.drawable.emoticon_cool_outline),
-                        contentDescription = "Emoji Picker"
-                    )
+                    }
                 }
-                if (comment.isNotBlank()) {
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AsyncImage(
+                        model = user?.profileImage ?: "",
+                        contentDescription = "Avatar",
+                        modifier = Modifier
+                            .size(35.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop,
+                    )
+
+                    TextField(
+                        value = comment,
+                        onValueChange = { comment = it },
+                        placeholder = { Text("Viết bình luận...") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester)
+                            .padding(start = 8.dp),
+                        singleLine = true,
+                        shape = RoundedCornerShape(24.dp),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            containerColor = Color.White
+                        ),
+                    )
                     IconButton(
                         onClick = {
-                            val actualParentId = if (parentCommentId == userId) null else parentCommentId
-                            viewModel.addComment(postId, userId, comment, actualParentId)
-                            comment = ""
-                            isCommenting = false
-                            isShowBottomBar = false
-                            keyboardController?.hide()
+                            showEmojiPicker = !showEmojiPicker
+                            if (showEmojiPicker) {
+                                keyboardController?.hide()
+                            } else {
+                                focusRequester.requestFocus()
+                                keyboardController?.show()
+                            }
                         },
                         modifier = Modifier.size(24.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                        Icon(
+                            painter = painterResource(if (showEmojiPicker) R.drawable.keyboard else R.drawable.emoticon_cool_outline),
+                            contentDescription = "Emoji Picker"
+                        )
+                    }
+                    if (comment.isNotBlank()) {
+                        IconButton(
+                            onClick = {
+                                val actualParentId = if (parentCommentId == userId) null else parentCommentId
+                                viewModel.addComment(postId, userId, comment, actualParentId)
+                                comment = ""
+                                isCommenting = false
+                                isShowBottomBar = false
+                                keyboardController?.hide()
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                        }
                     }
                 }
             }
@@ -1238,15 +1634,15 @@ fun BottomBarDetail(
 
 // Hàm tạo icon có số lượng bên dưới
 @Composable
-fun IconWithText(iconRes: Int, count: String) {
+fun IconWithText(iconRes: Int, count: String, onclickImage: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.padding(horizontal = 4.dp)
     ) {
-        IconButton(onClick = { /* Handle action */ }) {
+        IconButton(onClick = { onclickImage() }) {
             Icon(
                 painter = painterResource(id = iconRes),
-                contentDescription = null
+                contentDescription = null,
             )
         }
         Text(text = count, fontSize = 12.sp, color = Color.Gray)
@@ -1481,4 +1877,31 @@ private val emojis = listOf(
     "\ud83d\udc6d", // Two Women Holding Hands
     "\ud83d\udc8f" // Kiss
 )
-
+@Composable
+fun RowOptionItem(
+    text: String,
+    icon: ImageVector,
+    iconTint: Color = MaterialTheme.colorScheme.onSurface,
+    textColor: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 12.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = text,
+            tint = iconTint,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge.copy(color = textColor)
+        )
+    }
+}

@@ -64,71 +64,83 @@ import androidx.compose.foundation.lazy.grid.items
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(navController: NavHostController, context: Context) {
+fun SearchScreen(
+    navController: NavHostController,
+    context: Context,
+    initialQuery: String = ""
+) {
     val sharedPreferences = context.getSharedPreferences("blinknotes_prefs", Context.MODE_PRIVATE)
     val viewModel: SearchScreenViewModel = viewModel(
         factory = viewModelFactory {
             initializer { SearchScreenViewModel(sharedPreferences) }
         }
     )
+    // Đảm bảo searchText luôn đồng bộ với initialQuery khi initialQuery thay đổi
     var searchText by remember { mutableStateOf("") }
     val searchResults by viewModel.searchResults.collectAsState()
-    val searchHistory by viewModel.searchHistory.collectAsState() // Observe search history
+    val searchHistory by viewModel.searchHistory.collectAsState()
     val currentUser = FirebaseAuth.getInstance().currentUser
 
     val userId = currentUser?.uid ?: ""
     val viewModelEx  = ExploreScreenViewModel()
     val users by viewModelEx.users.collectAsState()
 
+    // Khi initialQuery thay đổi, cập nhật searchText và tự động tìm kiếm
+    LaunchedEffect(initialQuery) {
+        if (initialQuery.isNotBlank() && initialQuery != "{query}") {
+            searchText = initialQuery // Gán vào ô tìm kiếm
+            viewModel.searchPosts(initialQuery)
+        }
+    }
+
     Scaffold(
         topBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding( vertical = 16.dp),
+                    .padding(vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back",
-                modifier = Modifier.size(24.dp),
-                    tint = Color.Black
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(color = colorResource(R.color.beige), shape = RoundedCornerShape(32.dp)),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = {
-                    if (searchText.isNotEmpty()) {
-                        viewModel.searchPosts(searchText)
-                        viewModel.addSearchHistory(searchText)
-                    }
-                }) {
-                    Icon(Icons.Default.Search, contentDescription = "Search",
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back",
                         modifier = Modifier.size(24.dp),
                         tint = Color.Black
                     )
                 }
-                TextField(
-                    value = searchText,
-                    onValueChange = { searchText = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Nhập từ khóa tìm kiếm",
-                        color = Color.Gray,
-                        fontSize = 12.sp,
-                        maxLines = 1,
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(color = colorResource(R.color.beige), shape = RoundedCornerShape(32.dp)),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = {
+                        if (searchText.isNotEmpty()) {
+                            viewModel.searchPosts(searchText)
+                            viewModel.addSearchHistory(searchText)
+                        }
+                    }) {
+                        Icon(Icons.Default.Search, contentDescription = "Search",
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Black
+                        )
+                    }
+                    TextField(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Nhập từ khóa tìm kiếm",
+                            color = Color.Gray,
+                            fontSize = 12.sp,
+                            maxLines = 1,
                         ) },
-                    singleLine = true,
-                    colors = TextFieldDefaults.textFieldColors(
-                        containerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
+                        singleLine = true,
+                        colors = TextFieldDefaults.textFieldColors(
+                            containerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        )
                     )
-                )
-
-            }
+                }
                 Text(
                     text = "Tìm kiếm",
                     fontSize = 14.sp,
@@ -253,4 +265,3 @@ fun SearchScreen(navController: NavHostController, context: Context) {
 
     }
 }
-

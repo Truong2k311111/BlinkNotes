@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
@@ -74,6 +75,7 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 
@@ -83,7 +85,8 @@ import androidx.core.net.toUri
 fun ProfileScreen(
     navController: NavHostController,
     viewModel: ProfileScreenViewModel = viewModel(),
-    guestId : String? = null
+    guestId : String? = null,
+    blinkNotesId: String? = null
 ) {
     var user by remember { mutableStateOf<User?>(null) }
     var followingCount by remember { mutableStateOf(0) }
@@ -137,6 +140,9 @@ fun ProfileScreen(
 
     var selectedTab by remember { mutableStateOf(0) }
 
+    // Trạng thái ẩn tab: 0 - bài viết, 1 - đã lưu, 2 - đã thả tim
+    var hiddenTabs by remember { mutableStateOf(setOf<Int>()) }
+
     Scaffold(
         modifier = Modifier
             // .nestedScroll(scrollBehavior.nestedScrollConnection)
@@ -186,16 +192,42 @@ fun ProfileScreen(
             item {
                 TabContentProfile(
                     selectedTab = selectedTab,
-                    onTabSelected = { selectedTab = it }
+                    onTabSelected = { selectedTab = it },
+                    onTabLongPress = { tabIndex ->
+                        if (isOwnProfile) {
+                            hiddenTabs = if (hiddenTabs.contains(tabIndex)) {
+                                hiddenTabs - tabIndex
+                            } else {
+                                hiddenTabs + tabIndex
+                            }
+                        }
+                    },
+                    hiddenTabs = hiddenTabs,
+                    isOwnProfile = isOwnProfile
                 )
             }
-            if (isOwnProfile) {
-                when (selectedTab) {
-                    0 -> item {
-                        TabMyPost(navController)
-                    }
-                    1 -> item { TabMySavePost() }
-                    2 -> item { TabMyHeartPost(navController) }
+            // Hiển thị tab nếu không bị ẩn hoặc là chủ sở hữu profile
+            when (selectedTab) {
+                0 -> if (isOwnProfile || !hiddenTabs.contains(0)) item {
+                    TabMyPost(
+                        navController = navController,
+                        onlyPublic = !isOwnProfile,
+                        guestUserId = userId
+                    )
+                }
+                1 -> if (isOwnProfile || !hiddenTabs.contains(1)) item {
+                    TabMySavePost(
+                        navController = navController,
+                        onlyPublic = !isOwnProfile,
+                        guestUserId = userId
+                    )
+                }
+                2 -> if (isOwnProfile || !hiddenTabs.contains(2)) item {
+                    TabMyHeartPost(
+                        navController = navController,
+                        onlyPublic = !isOwnProfile,
+                        guestUserId = userId
+                    )
                 }
             }
         }
@@ -572,11 +604,19 @@ fun TopContentProfile(
 @Composable
 fun TabContentProfile(
     selectedTab: Int,
-    onTabSelected: (Int) -> Unit
+    onTabSelected: (Int) -> Unit,
+    onTabLongPress: (Int) -> Unit,
+    hiddenTabs: Set<Int>,
+    isOwnProfile: Boolean
 ) {
     val tabs = listOf(
         R.drawable.table,
-        R.drawable.book_lock_outline,
+        R.drawable.content_save_outline,
+        R.drawable.heart
+    )
+    val tabsOff = listOf(
+        R.drawable.table_off,
+        R.drawable.content_save_off_outline,
         R.drawable.heart_off
     )
 
@@ -588,15 +628,23 @@ fun TabContentProfile(
             verticalAlignment = Alignment.CenterVertically
         ) {
             tabs.forEachIndexed { index, iconRes ->
+                val isHidden = hiddenTabs.contains(index)
+                val iconToShow = if (isHidden) tabsOff[index] else iconRes
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() }
-                        ) {
-                            onTabSelected(index)
-                        },
+                        .combinedClickable(
+                            onClick = {
+                                if (!isHidden || isOwnProfile) {
+                                    onTabSelected(index)
+                                }
+                            },
+                            onLongClick = {
+                                if (isOwnProfile) {
+                                    onTabLongPress(index)
+                                }
+                            }
+                        ),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -604,10 +652,10 @@ fun TabContentProfile(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            painter = painterResource(id = iconRes),
+                            painter = painterResource(id = iconToShow),
                             contentDescription = null,
                             modifier = Modifier.size(28.dp),
-                            tint = if (index == selectedTab) Color.Black else Color.Gray
+                            tint = if (index == selectedTab && (!isHidden || isOwnProfile)) Color.Black else Color.Gray
                         )
                     }
                     // Indicator line
@@ -616,7 +664,7 @@ fun TabContentProfile(
                             .fillMaxWidth()
                             .height(2.dp)
                             .background(
-                                color = if (index == selectedTab) Color.Black else Color.Transparent
+                                color = if (index == selectedTab && (!isHidden || isOwnProfile)) Color.Black else Color.Transparent
                             )
                     )
                 }
@@ -632,7 +680,10 @@ fun TabContentProfile(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TabMyPost(navController: NavController
+fun TabMyPost(
+    navController: NavController,
+    onlyPublic: Boolean = false,
+    guestUserId: String? = null
 ) {
     val viewModel: ProfileScreenViewModel = viewModel()
     val viewModelUser: DetailScreenViewModel = viewModel()
@@ -641,19 +692,25 @@ fun TabMyPost(navController: NavController
     var isLoading by remember { mutableStateOf(true) }
     var showDeleteSheet by remember { mutableStateOf(false) }
     var selectedPostId by remember { mutableStateOf<String?>(null) }
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    var showConfirmDelete by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        currentUser?.uid?.let { userId ->
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val userIdToLoad = guestUserId ?: currentUser?.uid
+
+    LaunchedEffect(userIdToLoad) {
+        userIdToLoad?.let { userId ->
             viewModel.getUserPosts(userId) { fetchedPosts ->
-                posts = fetchedPosts
+                posts = if (onlyPublic)
+                    fetchedPosts.filter { it.visibility == "public" && it.status != "draft" }
+                else
+                    fetchedPosts.filter { it.status != "draft" }
                 isLoading = false
             }
             viewModel.loadDrafts(userId)
         } ?: run { isLoading = false }
     }
-    LaunchedEffect(Unit) {
-        currentUser?.uid?.let { userId ->
+    LaunchedEffect(userIdToLoad) {
+        userIdToLoad?.let { userId ->
             viewModelUser.getUserById(userId) { fetchedUser ->
                 user = fetchedUser
                 isLoading = false
@@ -668,7 +725,7 @@ fun TabMyPost(navController: NavController
         ) {
             LoadingAnimation()
         }
-    } else if (posts.isEmpty()) {
+    } else if (posts.isEmpty() && viewModel.drafts.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -692,8 +749,8 @@ fun TabMyPost(navController: NavController
                 ItemsTabMyPost(
                     imageLink = post.firstImageUrl,
                     numberHeart = post.likesCount,
-                    profileImage = user!!.profileImage,
-                    userName = user!!.username,
+                    profileImage = user ?.profileImage ?: "",
+                    userName = user ?.username ?: "",
                     isDraft = true,
                     onclick = {
                         navController.navigate("details/${post.id}/${post.userId}")
@@ -720,7 +777,9 @@ fun TabMyPost(navController: NavController
                     userName = "Nháp",
                     isDraft = false,
                     onclick = {
-                        navController.navigate("add_photo_screen?draftId=${draft.id}")
+                        navController.navigate(
+                            "add_photo?postId=${draft.id}"
+                        )
                     },
                     onLongPress = {
                         selectedPostId = draft.id
@@ -733,6 +792,7 @@ fun TabMyPost(navController: NavController
                     },
                     modifier = Modifier
                         .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2)
+                        .alpha(0.5f) // Làm mờ item nháp
                 )
             }
         }
@@ -742,11 +802,44 @@ fun TabMyPost(navController: NavController
         DeletePostBottomSheet(
             onDismiss = { showDeleteSheet = false },
             onDelete = {
+                showConfirmDelete = true // Hiện popup xác nhận khi nhấn Xóa
+            },
+            onEdit = {
                 selectedPostId?.let { postId ->
-                    viewModel.deletePost(postId) {
-                        posts = posts.filter { it.id != postId }
-                        showDeleteSheet = false
+                    showDeleteSheet = false
+                    navController.navigate("add_photo?postId=$postId")
+                }
+            }
+        )
+    }
+
+    // Popup xác nhận xóa
+    if (showConfirmDelete) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDelete = false },
+            title = { Text("Xác nhận xóa") },
+            text = { Text("Bạn có chắc chắn muốn xóa bài viết này không?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        selectedPostId?.let { postId ->
+                            viewModel.deletePost(postId) {
+                                // Cập nhật lại danh sách bài viết
+                                posts = posts.filter { it.id != postId }
+                                showConfirmDelete = false
+                                showDeleteSheet = false
+                            }
+                        }
                     }
+                ) {
+                    Text("Xóa", color = Color.White)
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { showConfirmDelete = false }
+                ) {
+                    Text("Hủy")
                 }
             }
         )
@@ -757,7 +850,8 @@ fun TabMyPost(navController: NavController
 @Composable
 fun DeletePostBottomSheet(
     onDismiss: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEdit: (() -> Unit)? = null // Thêm callback cho nút chỉnh sửa
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -777,14 +871,14 @@ fun DeletePostBottomSheet(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Xóa bài viết?",
+                text = "Xóa hoặc chỉnh sửa bài viết?",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Bạn có chắc chắn muốn xóa bài viết này không?",
+                text = "Bạn có chắc chắn muốn xóa hoặc chỉnh sửa bài viết này không?",
                 fontSize = 14.sp,
                 color = Color.Gray
             )
@@ -805,37 +899,41 @@ fun DeletePostBottomSheet(
                 ) {
                     Text(text = "Xóa", color = Color.White)
                 }
+                if (onEdit != null) {
+                    Button(
+                        onClick = onEdit,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                    ) {
+                        Text(text = "Chỉnh sửa", color = Color.White)
+                    }
+                }
             }
         }
     }
 }
 
-@Composable
-fun TabMySavePost() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = "Search Screen", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TabMyHeartPost(navController: NavController) {
+fun TabMySavePost(
+    navController: NavController,
+    onlyPublic: Boolean = false,
+    guestUserId: String? = null
+) {
     val viewModel: ProfileScreenViewModel = viewModel()
-    val viewModelUser: DetailScreenViewModel = viewModel()
-   // var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
-   // var user by remember { mutableStateOf<User?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     val currentUser = FirebaseAuth.getInstance().currentUser
-   // var user by remember { mutableStateOf<User?>(null) }
+    val userIdToLoad = guestUserId ?: currentUser?.uid
+    val savePosts = viewModel.savedPostsWithUsers
 
-    val likedPosts = viewModel.postsWithUsers // state list trong ViewModel
+    var showDeleteSheet by remember { mutableStateOf(false) }
+    var selectedPostId by remember { mutableStateOf<String?>(null) }
+    var showConfirmDelete by remember { mutableStateOf(false) }
 
-    // Gọi khi màn hình được mở lần đầu
-    LaunchedEffect(Unit) {
-        viewModel.loadLikedPosts(currentUser?.uid ?: "")
+    LaunchedEffect(userIdToLoad) {
+        viewModel.loadSavedPosts(userIdToLoad ?: "")
         isLoading = false
     }
-
+    val filteredPosts = if (onlyPublic) savePosts.filter { it.post.visibility == "public" } else savePosts
 
     if (isLoading) {
         Box(
@@ -844,7 +942,122 @@ fun TabMyHeartPost(navController: NavController) {
         ) {
             LoadingAnimation()
         }
-    } else if (likedPosts.isEmpty()) {
+    } else if (filteredPosts.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Chưa có bài viết nào đã lưu",
+                fontSize = 16.sp,
+                color = Color.Gray
+            )
+        }
+    } else {
+        FlowRow(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            maxItemsInEachRow = 2,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            filteredPosts.forEach { likePost ->
+                ItemsTabMyPost(
+                    imageLink = likePost.post.firstImageUrl,
+                    numberHeart = likePost.post.likesCount,
+                    profileImage = likePost.user?.profileImage,
+                    isDraft = true,
+                    userName = likePost.user?.username ?: "",
+                    onclick = {
+                        navController.navigate("details/${likePost.post.id}/${likePost.user?.userId ?: likePost.post.userIdCmt}")
+                    },
+                    onLongPress = {
+                        selectedPostId = likePost.post.id
+                        showDeleteSheet = true
+                    },
+                    onDelete = {
+                        // Không dùng ở đây
+                    },
+                    modifier = Modifier
+                        .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2)
+                )
+            }
+        }
+    }
+
+    if (showDeleteSheet) {
+        DeletePostBottomSheet(
+            onDismiss = { showDeleteSheet = false },
+            onDelete = {
+                showConfirmDelete = true
+            },
+            onEdit = null
+        )
+    }
+
+    if (showConfirmDelete) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDelete = false },
+            title = { Text("Xác nhận xóa") },
+            text = { Text("Bạn có chắc chắn muốn xóa bài viết này khỏi danh sách đã lưu không?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        selectedPostId?.let { postId ->
+                            viewModel.deleteSavedPost(postId) {
+                                viewModel.loadSavedPosts(currentUser?.uid ?: "")
+                                showConfirmDelete = false
+                                showDeleteSheet = false
+                            }
+                        }
+                    }
+                ) {
+                    Text("Xóa", color = Color.White)
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { showConfirmDelete = false }
+                ) {
+                    Text("Hủy")
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun TabMyHeartPost(
+    navController: NavController,
+    onlyPublic: Boolean = false,
+    guestUserId: String? = null
+) {
+    val viewModel: ProfileScreenViewModel = viewModel()
+    var isLoading by remember { mutableStateOf(true) }
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val userIdToLoad = guestUserId ?: currentUser?.uid
+    val likedPosts = viewModel.postsWithUsers
+
+    var showDeleteSheet by remember { mutableStateOf(false) }
+    var selectedPostId by remember { mutableStateOf<String?>(null) }
+    var showConfirmDelete by remember { mutableStateOf(false) }
+
+    LaunchedEffect(userIdToLoad) {
+        viewModel.loadLikedPosts(userIdToLoad ?: "")
+        isLoading = false
+    }
+    val filteredPosts = if (onlyPublic) likedPosts.filter { it.post.visibility == "public" } else likedPosts
+
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            LoadingAnimation()
+        }
+    } else if (filteredPosts.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -864,7 +1077,7 @@ fun TabMyHeartPost(navController: NavController) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            likedPosts.forEach { likePost ->
+            filteredPosts.forEach { likePost ->
                 ItemsTabMyPost(
                     imageLink = likePost.post.firstImageUrl,
                     numberHeart = likePost.post.likesCount,
@@ -875,18 +1088,57 @@ fun TabMyHeartPost(navController: NavController) {
                         navController.navigate("details/${likePost.post.id}/${likePost.user?.userId ?: likePost.post.userIdCmt}")
                     },
                     onLongPress = {
-                        // Handle long press if needed
+                        selectedPostId = likePost.post.id
+                        showDeleteSheet = true
                     },
                     onDelete = {
-//                        viewModel.deletePost(likePost.post.id) {
-//                            // Handle successful deletion
-//                        }
+                        // Không dùng ở đây
                     },
                     modifier = Modifier
-                        .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2) // Calculate width based on screen size minus padding
+                        .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2)
                 )
             }
         }
+    }
+
+    if (showDeleteSheet) {
+        DeletePostBottomSheet(
+            onDismiss = { showDeleteSheet = false },
+            onDelete = {
+                showConfirmDelete = true
+            },
+            onEdit = null
+        )
+    }
+
+    if (showConfirmDelete) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDelete = false },
+            title = { Text("Xác nhận xóa") },
+            text = { Text("Bạn có chắc chắn muốn xóa bài viết này khỏi danh sách đã thả tim không?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        selectedPostId?.let { postId ->
+                            viewModel.deleteLikedPost(postId) {
+                                viewModel.loadLikedPosts(currentUser?.uid ?: "")
+                                showConfirmDelete = false
+                                showDeleteSheet = false
+                            }
+                        }
+                    }
+                ) {
+                    Text("Xóa", color = Color.White)
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { showConfirmDelete = false }
+                ) {
+                    Text("Hủy")
+                }
+            }
+        )
     }
 }
 

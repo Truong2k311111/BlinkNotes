@@ -30,11 +30,15 @@ class SearchScreenViewModel(private val sharedPreferences: SharedPreferences) : 
                     .addOnSuccessListener { documents ->
                         val results = documents.mapNotNull { doc ->
                             val post = doc.toObject(Post::class.java).copy(id = doc.id)
-                            if (post.caption.contains(query, ignoreCase = true) ||
+                            if (query.startsWith("#")) {
+                                // Tìm theo hashtag
+                                post.tags.any { it.equals(query, ignoreCase = true) }
+                            } else {
+                                post.caption.contains(query, ignoreCase = true) ||
                                 post.tags.any { it.contains(query, ignoreCase = true) }
-                            ) {
-                                post
-                            } else null
+                            }.let { match ->
+                                if (match) post else null
+                            }
                         }
                         _searchResults.value = results
                         Log.d("SearchScreenViewModel", "Search results: $results")

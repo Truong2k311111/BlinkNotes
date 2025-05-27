@@ -10,6 +10,10 @@ import androidx.navigation.navigation
 import com.example.blinknotes.navigation.Graph
 import com.example.blinknotes.navigation.Screens
 import com.example.blinknotes.ui.addPhoto.AddPhotoScreen
+import com.example.blinknotes.ui.admin.AdminDashboard
+import com.example.blinknotes.ui.admin.PostManagement
+import com.example.blinknotes.ui.admin.ReportManagement
+import com.example.blinknotes.ui.admin.UserManagement
 import com.example.blinknotes.ui.detaill.DetaillScreen
 import com.example.blinknotes.ui.home.HomeScreen
 import com.example.blinknotes.ui.home.HomeScreenViewModel
@@ -19,6 +23,7 @@ import com.example.blinknotes.ui.notify.NotifyScreen
 import com.example.blinknotes.ui.notify.NotifyViewModel
 import com.example.blinknotes.ui.notify.SearchNotifyScreen
 import com.example.blinknotes.ui.notify.StatusScreen
+import com.example.blinknotes.ui.notify.notificationSysTem.SystemNotificationScreen
 import com.example.blinknotes.ui.profile.ProfileScreen
 import com.example.blinknotes.ui.profile.settingProfile.SettingScreenProfile
 
@@ -28,6 +33,8 @@ import com.example.blinknotes.ui.profile.FollowingAndFollowerScreen
 import com.example.blinknotes.ui.profile.ViewCoverImageScreen
 import com.example.blinknotes.ui.profile.settingProfile.LinkScreen
 import com.example.blinknotes.ui.profile.settingProfile.PrivacySettingsScreen
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 
 fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
@@ -55,83 +62,64 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             // Gọi hàm getUser() để lấy thông tin người dùng
             ProfileScreen(navController = navController, guestId = userId)
         }
+        composable(route = Screens.SettingScreenProfile.route) {
+            SettingScreenProfile(navController = navController)
+        }
         composable(route = Screens.ProfileScreen.route) {
             ProfileScreen(navController = navController)
         }
-        composable(route = Screens.SearchScreen.route) {
-            SearchScreen(navController = navController,
-                context = LocalContext.current
+        composable(
+            route = Screens.SearchScreen.route ,
+            arguments = listOf(
+                navArgument("query") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
             )
+        ) { backStackEntry ->
+            val context = LocalContext.current
+            val query = backStackEntry.arguments?.getString("query") ?: ""
+            SearchScreen(navController = navController, context = context, initialQuery = query)
         }
         composable(route = Screens.NotifyScreen.route) {
             NotifyScreen( navController = navController,)
-
         }
         detailsNavGraph(navController)
         // addPhotoNavGraph(navController)
         composable(
-            route = Screens.AddPhotoScreen.route,
-//            arguments = listOf(navArgument("imageUris") { type = NavType.StringType })
+            route = Screens.AddPhotoScreen.route ,
+            arguments = listOf(
+                navArgument("postId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
         ) {
-//            backStackEntry ->
-//            val imageUris = backStackEntry.arguments?.getString("imageUris")
             AddPhotoScreen(navController = navController)
         }
 
-        composable(
-            route = Screens.EditProfileImageScreen.route,
-            arguments = listOf(
-                navArgument("currentImageUrl") { type = NavType.StringType },
-                navArgument("userId") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val currentImageUrl = backStackEntry.arguments?.getString("currentImageUrl") ?: ""
-            val userId = backStackEntry.arguments?.getString("userId") ?: ""
-            EditProfileImageScreen(
-                currentImageUrl = currentImageUrl,
-                onDismiss = { navController.navigateUp() },
-                onImageUpdated = { newImageUrl ->
-                    // Quay lại màn hình trước và truyền URL mới
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set("updatedImageUrl", newImageUrl)
-                    navController.navigateUp()
-                },
-                userId = userId
-            )
+        // Admin Routes
+        composable(route = Screens.AdminDashboard.route) {
+            val context = LocalContext.current
+            AdminDashboard(navController = navController, context = context)
+        }
+        composable(route = Screens.AdminUserManagement.route) {
+            val context = LocalContext.current
+            UserManagement(navController, context = context)
+        }
+        composable(route = Screens.AdminPostManagement.route) {
+            val context = LocalContext.current
+            PostManagement(navController, context = context)
         }
 
-        composable(route = Screens.SettingScreenProfile.route){
-            SettingScreenProfile(navController = navController)
+        composable(route = Screens.AdminReportManagement.route) {
+            ReportManagement(navController)
         }
-        composable(route = Screens.FollowingAndFollowerScreen.route + "/{userId}" ){
-              val userId = it.arguments?.getString("userId") ?: ""
-            FollowingAndFollowerScreen(navController = navController, userId = userId)
-        }
-
-        composable("edit_cover_image_screen/{currentCoverUrl}") { backStackEntry ->
-            val currentCoverUrl = backStackEntry.arguments?.getString("currentCoverUrl") ?: ""
-            EditCoverImageScreen(
-                navController = navController,
-                viewModel = viewModel(),
-                currentCoverUrl = currentCoverUrl
-            )
-        }
-
-        composable(
-            route = Screens.ViewCoverImageScreen.route,
-            arguments = listOf(
-                navArgument("imageUrl") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val imageUrl = backStackEntry.arguments?.getString("imageUrl") ?: ""
-            Log.d("NavGraph", "Encoded image URL from arguments: $imageUrl")
-          //  val decodedUrl = URLDecoder.decode(imageUrl, StandardCharsets.UTF_8.toString())
-         //   Log.d("NavGraph", "Decoded image URL: $decodedUrl")
-            ViewCoverImageScreen(
-                navController = navController,
-                imageUrl = imageUrl
-            )
+        composable(route = Screens.SystemNotification.route) {
+            SystemNotificationScreen(
+                navController = navController)
         }
 
         composable(
@@ -190,7 +178,55 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
               navController = navController
             )
         }
-
+        composable(
+            route = Screens.EditProfileImageScreen.route,
+            arguments = listOf(
+                navArgument("currentImageUrl") { type = NavType.StringType },
+                navArgument("userId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val currentImageUrl = backStackEntry.arguments?.getString("currentImageUrl") ?: ""
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            EditProfileImageScreen(
+                currentImageUrl = currentImageUrl,
+                onDismiss = { navController.navigateUp() },
+                onImageUpdated = { newImageUrl ->
+                    // Quay lại màn hình trước và truyền URL mới
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("updatedImageUrl", newImageUrl)
+                    navController.navigateUp()
+                },
+                userId = userId
+            )
+        }
+        composable("edit_cover_image_screen/{currentCoverUrl}") { backStackEntry ->
+            val currentCoverUrl = backStackEntry.arguments?.getString("currentCoverUrl") ?: ""
+            EditCoverImageScreen(
+                navController = navController,
+                viewModel = viewModel(),
+                currentCoverUrl = currentCoverUrl
+            )
+        }
+        composable(
+            route = Screens.ViewCoverImageScreen.route,
+            arguments = listOf(
+                navArgument("imageUrl") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val imageUrl = backStackEntry.arguments?.getString("imageUrl") ?: ""
+            Log.d("NavGraph", "Encoded image URL from arguments: $imageUrl")
+            //  val decodedUrl = URLDecoder.decode(imageUrl, StandardCharsets.UTF_8.toString())
+            //   Log.d("NavGraph", "Decoded image URL: $decodedUrl")
+            ViewCoverImageScreen(
+                navController = navController,
+                imageUrl = imageUrl
+            )
+        }
+        composable(route = Screens.FollowingAndFollowerScreen.route + "/{userId}" ){
+            val userId = it.arguments?.getString("userId") ?: ""
+            FollowingAndFollowerScreen(navController = navController, userId = userId)
+        }
 
     }
 }

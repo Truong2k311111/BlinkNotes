@@ -72,6 +72,14 @@ fun VisibilityBottomSheet(
                         onDismiss()
                     }
                 )
+                VisibilityOption(
+                    text = "Bạn bè",
+                    isSelected = currentVisibility == "friends",
+                    onClick = {
+                        onVisibilitySelected("friends")
+                        onDismiss()
+                    }
+                )
             }
         }
     }

@@ -29,6 +29,18 @@ class AddPhotoScreenViewModel: ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    // Thêm biến lưu các ảnh đã upload (URL)
+    private val _uploadedImageUrls = MutableStateFlow<List<String>>(emptyList())
+    val uploadedImageUrls: StateFlow<List<String>> = _uploadedImageUrls
+
+    fun setUploadedImageUrls(urls: List<String>) {
+        _uploadedImageUrls.value = urls
+    }
+
+    fun clearUploadedImageUrls() {
+        _uploadedImageUrls.value = emptyList()
+    }
+
     fun updateSelectedImages(uris: List<Uri>) {
         _selectedImages.value = uris
     }
@@ -45,19 +57,30 @@ class AddPhotoScreenViewModel: ViewModel() {
             try {
                 val userId = auth.currentUser?.uid ?: throw Exception("User not logged in")
                 val imageUrls = mutableListOf<String>()
+                // 1. Thêm các ảnh đã upload (URL) vào danh sách
+                imageUrls.addAll(_uploadedImageUrls.value)
+                // 2. Chỉ upload các ảnh là Uri local (không phải URL)
                 for (imageUri in selectedImages.value) {
+                    if (imageUri.scheme == "http" || imageUri.scheme == "https") {
+                        // Bỏ qua, đã có trong uploadedImageUrls
+                        continue
+                    }
                     val fileRef = storageRef.child("uploads/${UUID.randomUUID()}.jpg")
                     fileRef.putFile(imageUri).await()
                     val downloadUri = fileRef.downloadUrl.await().toString()
                     imageUrls.add(downloadUri)
                 }
-                val visibility = if (visibility.isEmpty()) "public" else visibility
-                val status = if (status.isEmpty()) "active" else status
+                val finalVisibility = if (visibility.isEmpty()) "public" else visibility
+                val finalStatus = if (status.isEmpty()) "active" else status
 
-                addPost(userId, imageUrls, caption, content,visibility, status)
+                val tags = extractHashtags(content)
+
+                addPost(userId, imageUrls, caption, content, finalVisibility, finalStatus, tags)
                 viewModelScope.launch(Dispatchers.Main) {
-                    Toast.makeText(context, "Đăng bài thành công!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (finalStatus == "draft") "Lưu nháp thành công!" else "Đăng bài thành công!", Toast.LENGTH_SHORT).show()
                     _isLoading.value = false
+                    // Xóa uploadedImageUrls sau khi đăng thành công
+                    clearUploadedImageUrls()
                     onSuccess()
                 }
             } catch (e: Exception) {
@@ -68,24 +91,11 @@ class AddPhotoScreenViewModel: ViewModel() {
             }
         }
     }
-    private suspend fun addDraft(
-        userId: String,
-        caption: String,
-        content: String,
-        visibility: String,
-        imageUris: List<String>
-    ) {
-        val newDraftRef = db.collection("drafts").document()
-        val draft = hashMapOf(
-            "draftId" to newDraftRef.id,
-            "userId" to userId,
-            "caption" to caption,
-            "content" to content,
-            "createdAt" to System.currentTimeMillis(),
-            "imageUris" to imageUris,
-            "visibility" to visibility
-        )
-        newDraftRef.set(draft).await()
+
+    private fun extractHashtags(text: String): List<String> {
+        // Regex tìm các hashtag bắt đầu bằng #, không chứa khoảng trắng, dấu câu
+        val regex = Regex("""#(\w+)""")
+        return regex.findAll(text).map { it.value }.toList()
     }
 
     private suspend fun addPost(
@@ -94,7 +104,8 @@ class AddPhotoScreenViewModel: ViewModel() {
         caption: String,
         content: String,
         visibility: String,
-        status: String
+        status: String,
+        tags: List<String>
     ) {
         val newPostRef = db.collection("posts").document()
         val post = hashMapOf(
@@ -107,10 +118,47 @@ class AddPhotoScreenViewModel: ViewModel() {
             "likesCount" to 0,
             "commentsCount" to 0,
             "visibility" to visibility,
-            "tags" to listOf("travel", "food"),
+            "tags" to tags, // Sửa lại ở đây
             "status" to status
         )
         newPostRef.set(post).await()
+    }
+
+    fun updatePost(
+        postId: String,
+        caption: String,
+        content: String,
+        imageUrls: List<String>,
+        visibility: String,
+        status: String,
+        context: Context,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isLoading.value = true
+            try {
+                val tags = extractHashtags(content)
+                val updates = mapOf(
+                    "caption" to caption,
+                    "content" to content,
+                    "imageUrls" to imageUrls,
+                    "visibility" to visibility,
+                    "status" to status,
+                    "tags" to tags
+                )
+                db.collection("posts").document(postId).update(updates).await()
+                viewModelScope.launch(Dispatchers.Main) {
+                    Toast.makeText(context, "Cập nhật bài viết thành công!", Toast.LENGTH_SHORT).show()
+                    _isLoading.value = false
+                    onSuccess()
+                }
+            } catch (e: Exception) {
+                viewModelScope.launch(Dispatchers.Main) {
+                    Toast.makeText(context, "Lỗi cập nhật bài viết!", Toast.LENGTH_SHORT).show()
+                    _isLoading.value = false
+                }
+            }
+        }
     }
 
     data class Draft(
@@ -124,19 +172,38 @@ class AddPhotoScreenViewModel: ViewModel() {
     fun loadDraft(draftId: String, onSuccess: (Draft) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val draftDoc = db.collection("drafts").document(draftId).get().await()
+                val draftDoc = db.collection("posts").document(draftId).get().await()
                 if (draftDoc.exists()) {
+                    val imageUrls = draftDoc.get("imageUrls") as? List<String> ?: emptyList()
+                    // Lưu các URL này vào biến uploadedImageUrls
+                    setUploadedImageUrls(imageUrls)
                     val draft = Draft(
                         id = draftDoc.id,
                         caption = draftDoc.getString("caption") ?: "",
                         content = draftDoc.getString("content") ?: "",
                         visibility = draftDoc.getString("visibility") ?: "public",
-                        imageUris = draftDoc.get("imageUris") as? List<String> ?: emptyList()
+                        imageUris = imageUrls
                     )
                     onSuccess(draft)
+                } else {
+                    // Không tìm thấy draft, trả về draft rỗng với id rỗng
+                    onSuccess(Draft("", "", "", "public", emptyList()))
                 }
             } catch (e: Exception) {
                 Log.e("AddPhotoScreenViewModel", "Error loading draft: ${e.message}")
+                // Trả về draft rỗng nếu lỗi
+                onSuccess(Draft("", "", "", "public", emptyList()))
+            }
+        }
+    }
+
+    fun clearDraft(draftId: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                db.collection("posts").document(draftId).delete().await()
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("AddPhotoScreenViewModel", "Error clearing draft: ${e.message}")
             }
         }
     }
