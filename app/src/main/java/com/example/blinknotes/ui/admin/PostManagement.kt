@@ -1,17 +1,54 @@
 package com.example.blinknotes.ui.admin
 
 import android.content.Context
-import androidx.compose.foundation.background
+import android.widget.Toast
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,19 +56,18 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.R
+import com.example.blinknotes.auth.AuthManager
+import com.example.blinknotes.navigation.Screens
+import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.ui.home.User
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import java.text.SimpleDateFormat
-import java.util.*
-import android.widget.Toast
-import com.example.blinknotes.auth.AuthManager
-import com.example.blinknotes.navigation.Screens
+import java.util.Date
+import java.util.Locale
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,7 +152,6 @@ fun PostManagement(
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                // Search Bar
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -131,8 +166,6 @@ fun PostManagement(
                         unfocusedBorderColor = MaterialTheme.colorScheme.outline
                     )
                 )
-
-                // Filter Chips
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -155,8 +188,6 @@ fun PostManagement(
                         label = { Text("Đã ẩn") }
                     )
                 }
-
-                // Post List
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
@@ -183,8 +214,6 @@ fun PostManagement(
             }
         }
     }
-
-    // Post Details Bottom Sheet
     if (showPostDetails && selectedPost != null) {
         PostDetailsBottomSheet(
             post = selectedPost!!,
@@ -200,8 +229,6 @@ fun PostManagement(
             }
         )
     }
-
-    // Delete Confirmation Dialog
     if (showDeleteConfirmation && selectedPost != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
@@ -226,8 +253,6 @@ fun PostManagement(
             }
         )
     }
-
-    // Hide Confirmation Dialog
     if (showHideConfirmation && selectedPost != null) {
         AlertDialog(
             onDismissRequest = { showHideConfirmation = false },
@@ -269,7 +294,6 @@ fun PostCard(
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Post Image
             AsyncImage(
                 model = post.imageUrls.firstOrNull(),
                 contentDescription = "Post Image",
@@ -278,11 +302,9 @@ fun PostCard(
                     .height(200.dp),
                 contentScale = ContentScale.Crop
             )
-
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
-                // User Info
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -298,9 +320,7 @@ fun PostCard(
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-
                     Spacer(modifier = Modifier.width(12.dp))
-
                     Column {
                         Text(
                             text = user?.username ?: "Unknown User",
@@ -314,19 +334,13 @@ fun PostCard(
                         )
                     }
                 }
-
                 Spacer(modifier = Modifier.height(8.dp))
-
-                // Post Content
                 Text(
                     text = post.caption,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 2
                 )
-
                 Spacer(modifier = Modifier.height(8.dp))
-
-                // Post Stats
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -346,7 +360,6 @@ fun PostCard(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
-
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -362,7 +375,6 @@ fun PostCard(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
-
                     if (post.isReported) {
                         Surface(
                             shape = RoundedCornerShape(4.dp),
@@ -376,7 +388,6 @@ fun PostCard(
                             )
                         }
                     }
-
                     if (post.isHidden) {
                         Surface(
                             shape = RoundedCornerShape(4.dp),
@@ -420,8 +431,6 @@ fun PostDetailsBottomSheet(
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
-
-            // Post Image
             AsyncImage(
                 model = post.imageUrls.firstOrNull(),
                 contentDescription = "Post Image",
@@ -430,10 +439,7 @@ fun PostDetailsBottomSheet(
                     .height(250.dp),
                 contentScale = ContentScale.Crop
             )
-
             Spacer(modifier = Modifier.height(14.dp))
-
-            // User Info
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -449,9 +455,7 @@ fun PostDetailsBottomSheet(
                         modifier = Modifier.fillMaxSize()
                     )
                 }
-
                 Spacer(modifier = Modifier.width(6.dp))
-
                 Column {
                     Text(
                         text = user?.username ?: "Unknown User",
@@ -465,10 +469,7 @@ fun PostDetailsBottomSheet(
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(14.dp))
-
-            // Post Details
             DetailItem("ID bài viết", post.id)
             DetailItem("Caption", post.caption)
             DetailItem("Lượt thích", post.likesCount.toString())
@@ -477,10 +478,7 @@ fun PostDetailsBottomSheet(
             if (post.isReported) {
                 DetailItem("Báo cáo", "Đã báo cáo")
             }
-
             Spacer(modifier = Modifier.height(12.dp))
-
-            // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -496,7 +494,6 @@ fun PostDetailsBottomSheet(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Ẩn bài viết")
                 }
-
                 OutlinedButton(
                     onClick = onDeletePost,
                     colors = ButtonDefaults.outlinedButtonColors(

@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -58,23 +57,19 @@ import coil.request.ImageRequest
 import com.example.blinknotes.R
 import com.example.blinknotes.navigation.Screens
 import com.example.blinknotes.ui.home.FollowedScreenViewModel
-import com.example.blinknotes.ui.home.FollowedUserItem
 import com.example.blinknotes.ui.home.IconButton
 import com.example.blinknotes.ui.home.User
 import com.google.firebase.auth.FirebaseAuth
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 @Composable
 fun FollowingAndFollowerScreen(
-//    followers: List<String>,
-//    following: List<String>,
     navController: NavController,
     viewModelPro: ProfileScreenViewModel = viewModel(),
     userId: String
-    ) {
+) {
     val viewModel = FollowedScreenViewModel()
     val followedUsers by viewModel.followedUsers.collectAsState()
+    val followersUsers by viewModel.followersUsers.collectAsState(initial = emptyList())
     var user by remember { mutableStateOf<User?>(null) }
     var followingCount by remember { mutableStateOf(0) }
     var followersCount by remember { mutableStateOf(0) }
@@ -87,8 +82,6 @@ fun FollowingAndFollowerScreen(
         viewModel.loadFollowedUsers()
         viewModel.loadSuggestedUsers()
     }
-
-    // Lấy thông tin user và số lượng followers/following
     LaunchedEffect(userId) {
         if (userId != null) {
             viewModelPro.getCurrentUser(userId = userId) { fetchUser ->
@@ -110,10 +103,14 @@ fun FollowingAndFollowerScreen(
             "Follower (${followersCount})"
         )
         var selectedTabIndex by remember { mutableStateOf(0) }
-
+    LaunchedEffect(selectedTabIndex, userId) {
+        if (selectedTabIndex == 1) {
+            viewModel.loadFollowersUsers(userId)
+        } else {
+            viewModel.loadFollowedUsers()
+        }
+    }
         Column(modifier = Modifier.fillMaxSize()) {
-
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -138,8 +135,6 @@ fun FollowingAndFollowerScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
             }
-
-            // Tabs
             TabRow(
                 selectedTabIndex = selectedTabIndex,
                 modifier = Modifier.fillMaxWidth(),
@@ -164,16 +159,13 @@ fun FollowingAndFollowerScreen(
                     )
                 }
             }
-
-            // Content for each tab
-          //  val itemsToShow = if (selectedTabIndex == 0) following else followers
-
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
-                items(followedUsers) { user ->
+                val itemsToShow = if (selectedTabIndex == 0) followedUsers else followersUsers
+                items(itemsToShow) { user ->
                     FollowItem(
                         user = user,
                         onUserClick = {
@@ -182,7 +174,7 @@ fun FollowingAndFollowerScreen(
                             )
                         },
                         onFollowClick = { viewModel.unfollowUser(user.userId) },
-                        isFollowing = true
+                        isFollowing = selectedTabIndex == 0
                     )
                 }
             }
@@ -200,7 +192,6 @@ fun FollowItem(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar and username
         Row(
             modifier = Modifier
                 .weight(1f)

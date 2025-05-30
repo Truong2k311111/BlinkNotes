@@ -34,9 +34,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.blinknotes.navigation.Screens
-import com.example.blinknotes.navigation.Screens.PhoneAuthScreen.createRoute
 import com.example.blinknotes.R
+import com.example.blinknotes.navigation.Screens.PhoneAuthScreen.createRoute
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

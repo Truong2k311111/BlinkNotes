@@ -1,12 +1,8 @@
 package com.example.blinknotes.navigation
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.BottomAppBar
 import androidx.compose.material.Scaffold
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -21,18 +17,11 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
-import authNavGraph
 import com.example.blinknotes.ui.home.HomeScreenViewModel
-import navGraph
 
 @Composable
 fun RootNavigationGraph(navController: NavHostController) {
@@ -46,7 +35,6 @@ val viewModel = HomeScreenViewModel()
         Screens.ProfileScreen.route,
         Screens.NotifyScreen.route,
     )
-
     val bottomNavigationItems = listOf(
         NavigationItem(Icons.Filled.Home,Icons.Outlined.Home, Screens.HomeScreen.route),
         NavigationItem(Icons.Filled.Search,Icons.Outlined.Search,Screens.SearchScreen.route),
@@ -59,7 +47,6 @@ val viewModel = HomeScreenViewModel()
                 if (currentRoute in homeRoutes) {
                     BottomNavigationBar(navController = navController, items = bottomNavigationItems)
                 }
-
         }
     ) { paddingValues ->
 

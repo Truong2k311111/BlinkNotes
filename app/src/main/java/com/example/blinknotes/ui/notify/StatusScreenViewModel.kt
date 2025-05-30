@@ -57,7 +57,6 @@ class StatusScreenViewModel : ViewModel() {
     private fun loadPosts() {
         viewModelScope.launch {
             try {
-                // TODO: Implement actual data loading from repository
                 _uiState.value = StatusScreenState.Success(emptyList())
             } catch (e: Exception) {
                 _uiState.value = StatusScreenState.Error(e.message ?: "Failed to load posts")
@@ -86,7 +85,6 @@ class StatusScreenViewModel : ViewModel() {
                 _posts.value = _posts.value + newPost
                 clearPostDraft()
             } catch (e: Exception) {
-                // Handle error
             } finally {
                 isPosting = false
             }

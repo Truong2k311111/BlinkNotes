@@ -63,7 +63,7 @@ class SearchScreenViewModel(private val sharedPreferences: SharedPreferences) : 
     fun addSearchHistory(keyword: String) {
         _searchHistory.update { history ->
             val updatedHistory = if (!history.contains(keyword)) {
-                (history + keyword).takeLast(10) // Keep only the last 10 items
+                (history + keyword).takeLast(10)
             } else history
             saveSearchHistory(updatedHistory)
             updatedHistory

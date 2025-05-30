@@ -1,14 +1,12 @@
 package com.example.blinknotes.ui.home
 
-import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.blinknotes.data.helper.FirestoreHelper.getAllPosts
 import com.example.blinknotes.data.helper.FirestoreHelper.getAllPosts2
-import com.example.blinknotes.data.helper.FirestoreHelper.getAllPostsExcludingUsers
 import com.example.blinknotes.data.helper.FirestoreHelper.getUser
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +15,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.google.firebase.firestore.FieldValue
 
 
 data class Post(
@@ -77,22 +74,7 @@ data class User(
     val isAdmin: Boolean = false
 )
 
-data class Report(
-    val id: String = "",
-    val reporterId: String = "",
-    val reportedType: String = "", // "post" or "user"
-    val reportedId: String = "", // postId or userId
-    val content: String = "",
-    val createdAt: Long = System.currentTimeMillis(),
-    val status: String = "pending", // "pending", "resolved", "dismissed"
-    val resolvedAt: Long? = null,
-    val resolvedBy: String? = null,
-    val resolution: String? = null
-)
-
 class ExploreScreenViewModel : ViewModel() {
-    private val _selectedImages = MutableStateFlow<List<Uri>>(emptyList())
-    val selectedImages: StateFlow<List<Uri>> = _selectedImages
 
     private val _posts = MutableStateFlow<List<Post>>(emptyList())
     val posts: StateFlow<List<Post>> = _posts
@@ -102,8 +84,6 @@ class ExploreScreenViewModel : ViewModel() {
 
     private val _usersAll = MutableStateFlow<Map<String, User?>>(emptyMap())
     val usersAll: StateFlow<Map<String, User?>> = _usersAll
-    private val _usersListBlock = MutableStateFlow<Map<String, User?>>(emptyMap())
-    val usersListBlock: StateFlow<Map<String, User?>> = _usersListBlock
 
     private val _userCache = mutableMapOf<String, User?>()
     private val _isRefreshing = MutableStateFlow(false)
@@ -114,9 +94,7 @@ class ExploreScreenViewModel : ViewModel() {
 
     private var lastVisiblePost: Post? = null
     private var _listUser = MutableStateFlow<List<String>>(emptyList())
-    val listUser : StateFlow<List<String>> = _listUser
     internal var isLoading = false
-    private val pageSize = 10
     private var loadedPostIds = mutableSetOf<String>()
 
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
@@ -138,7 +116,7 @@ class ExploreScreenViewModel : ViewModel() {
                             blockedUsers.contains(currentUserId)
                         }.map { it.id }
                         _listUser.value = blockedByUsers
-                        _usersAll.value = users.associateBy { it.userId }
+                        _usersAll.value = documents.associate { it.id to it.toObject(User::class.java) }
                         Log.d("FirestoreUser", "Users loaded: ${_listUser.value}")
                         }
             } catch (e: Exception) {
@@ -168,7 +146,6 @@ class ExploreScreenViewModel : ViewModel() {
             callback(it)
             return
         }
-
         FirebaseFirestore.getInstance().collection("posts")
             .document(postId)
             .get()
@@ -188,14 +165,11 @@ class ExploreScreenViewModel : ViewModel() {
  suspend   fun loadMorePosts() {
         if (isLoading) return
         isLoading = true
-            try {
-                delay(800L) // Reduced delay for better UX
-//            getAllPosts(listUser = _listUser.value, lastVisiblePost)
+     try {
+                delay(800L)
                 getAllPosts2(lastVisiblePost)
-              // getAllPostsExcludingUsers(listUser = _listUser.value,lastVisiblePost)
             { newPosts ->
                 if (newPosts.isNotEmpty()) {
-                        // Lọc ra các bài viết đã được tải trước đó
                         val uniqueNewPosts = newPosts.filter { post ->
                             !loadedPostIds.contains(post.id)
                         }
@@ -203,7 +177,6 @@ class ExploreScreenViewModel : ViewModel() {
                             lastVisiblePost = uniqueNewPosts.last()
                             val currentPosts = _posts.value
                             _posts.value = currentPosts + uniqueNewPosts
-                            // Thêm ID của các bài viết mới vào set
                             loadedPostIds.addAll(uniqueNewPosts.map { it.id })
                         }
                     }
@@ -224,9 +197,9 @@ class ExploreScreenViewModel : ViewModel() {
                 _posts.value = emptyList()
                 _userCache.clear()
                 _users.value = emptyMap()
-                loadedPostIds.clear() // Reset danh sách ID đã tải
+                loadedPostIds.clear()
 
-                delay(1000L) // Add a small delay to show the refresh animation
+                delay(1000L)
                 loadMorePosts()
             } finally {
                 _isRefreshing.value = false
@@ -280,14 +253,11 @@ class ExploreScreenViewModel : ViewModel() {
                     .collection("likes")
                     .document("${userId}_${postId}")
 
-                // Kiểm tra trạng thái like hiện tại
                 likeRef.get().addOnSuccessListener { document ->
                     if (document.exists()) {
-                        // Nếu đã like thì unlike
                         likeRef.delete()
                         postRef.update("likesCount", FieldValue.increment(-1))
                             .addOnSuccessListener {
-                                // Cập nhật số tim trong danh sách bài viết
                                 val currentPosts = _posts.value
                                 val updatedPosts = currentPosts.map { post ->
                                     if (post.id == postId) {
@@ -300,7 +270,6 @@ class ExploreScreenViewModel : ViewModel() {
                                 _postLikeStatus.value = _postLikeStatus.value + (postId to false)
                             }
                     } else {
-                        // Nếu chưa like thì like
                         likeRef.set(mapOf(
                             "userId" to userId,
                             "postId" to postId,
@@ -308,7 +277,6 @@ class ExploreScreenViewModel : ViewModel() {
                         ))
                         postRef.update("likesCount", FieldValue.increment(1))
                             .addOnSuccessListener {
-                                // Cập nhật số tim trong danh sách bài viết
                                 val currentPosts = _posts.value
                                 val updatedPosts = currentPosts.map { post ->
                                     if (post.id == postId) {
@@ -334,14 +302,11 @@ class ExploreScreenViewModel : ViewModel() {
                 val saveRef = FirebaseFirestore.getInstance()
                     .collection("saves")
                     .document("${userId}_${postId}")
-                // Kiểm tra trạng thái lưu hiện tại
                 saveRef.get().addOnSuccessListener { document ->
                     if (document.exists()) {
-                        // Nếu đã lưu thì bỏ lưu
                         saveRef.delete()
                         postRef.update("isSaved", false)
                             .addOnSuccessListener {
-                                // Cập nhật trạng thái lưu trong danh sách bài viết
                                 val currentPosts = _posts.value
                                 val updatedPosts = currentPosts.map { post ->
                                     if (post.id == postId) {
@@ -353,7 +318,6 @@ class ExploreScreenViewModel : ViewModel() {
                                 _posts.value = updatedPosts
                             }
                     } else {
-                        // Nếu chưa lưu thì lưu
                         saveRef.set(mapOf(
                             "userId" to userId,
                             "postId" to postId,
@@ -361,7 +325,6 @@ class ExploreScreenViewModel : ViewModel() {
                         ))
                         postRef.update("isSaved", true)
                             .addOnSuccessListener {
-                                // Cập nhật trạng thái lưu trong danh sách bài viết
                                 val currentPosts = _posts.value
                                 val updatedPosts = currentPosts.map { post ->
                                     if (post.id == postId) {

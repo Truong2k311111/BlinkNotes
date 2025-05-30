@@ -9,48 +9,29 @@ import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -60,13 +41,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -79,25 +55,17 @@ import com.example.blinknotes.ui.Auth.Component.CustomButton
 import com.example.blinknotes.ui.Auth.Component.CustomTextField
 import com.example.blinknotes.ui.home.User
 import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.firebase.Firebase
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.auth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.firestore
-import com.google.firebase.messaging.FirebaseMessaging
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import com.google.android.gms.auth.api.signin.SignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.tasks.OnCompleteListener
-import com.google.android.gms.tasks.Task
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.tasks.Task
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 
 @Composable
 fun LoginScreen(authViewModel: AuthViewModel, navController: NavController) {
-    val activity = LocalContext.current as Activity
     val context = LocalContext.current
     val googleSignInClient = GoogleSignIn.getClient(
         context,
@@ -110,13 +78,11 @@ fun LoginScreen(authViewModel: AuthViewModel, navController: NavController) {
         val signInIntent = googleSignInClient.signInIntent
         launcher.launch(signInIntent)
     }
-
     val googleSignInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             handleGoogleSignInResult(task, navController, context)
         } else {
-            Log.w("TAG", "Google sign in failed: ${result.resultCode}")
             Toast.makeText(context, "Đăng nhập bằng Google thất bại", Toast.LENGTH_SHORT).show()
         }
     }
@@ -145,13 +111,11 @@ fun LoginScreen(authViewModel: AuthViewModel, navController: NavController) {
                         }
                     }
                 },
-
                 onClickNavigation = {
                     navController.navigate(Screens.RegisterScreen.route)
                 },
                 loginGoogle = {
                     signInWithGoogle(googleSignInLauncher)
-
                 },
                 onPrivacyClick = {},
                 onTermsClick = {},
@@ -164,12 +128,9 @@ fun LoginScreen(authViewModel: AuthViewModel, navController: NavController) {
                     } else {
                         Toast.makeText(context, "Vui lòng nhập email trước khi đặt lại mật khẩu!", Toast.LENGTH_SHORT).show()
                     }
-
                 }
-
             )
         }
-
     }
 }
 @OptIn(ExperimentalMaterial3Api::class)
@@ -304,89 +265,6 @@ fun ClickableTextSection(
         }
     )
 }
-
-
-
-@Composable
-fun ViewPagerLoginScreen(
-    delay : Long
-){
-    val pagerState = rememberPagerState(pageCount = { Int.MAX_VALUE })
-    val coroutineScope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-//        snapshotFlow {
-//            pagerState.currentPage
-//        }
-//            .collectLatest { currentPage ->
-//                delay(timeMillis = delay )
-//                coroutineScope.launch {
-//                    val nextPage = (pagerState.currentPage + 1) % images.size
-//                    pagerState.animateScrollToPage(nextPage,
-//                        animationSpec = tween(
-//                            durationMillis = 800,
-//                            easing = LinearOutSlowInEasing))
-//            }
-        while (true) {
-            delay(timeMillis = delay )
-            coroutineScope.launch {
-                val nextPage = (pagerState.currentPage + 1) % images.size
-                pagerState.animateScrollToPage(nextPage,
-                    animationSpec = tween(
-                        durationMillis = 800,
-                        easing = LinearOutSlowInEasing))
-                pagerState.scroll { scrollBy(1f) }
-            }
-        }
-    }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp)
-        ) { page ->
-            val index = page % images.size
-            Image(
-                painter = painterResource(id = images[index]),
-                contentDescription = "Ảnh $index",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 8.dp)
-                    .clip(RoundedCornerShape(12.dp)),
-                contentScale = ContentScale.Crop
-            )
-        }
-    }
-}
-
-// Danh sách ảnh
-val images = listOf(
-    R.drawable.splash,
-    R.drawable.splash,
-    R.drawable.splash,
-    R.drawable.splash,
-    R.drawable.splash,
-    R.drawable.splash,
-    R.drawable.splash,
-    R.drawable.splash,
-    R.drawable.splash,
-    R.drawable.splash,
-    R.drawable.splash,
-    )
-
-//@Preview(showBackground = true)
-//@Composable
-//fun PreviewLoginScreen() {
-//ContentLoginScreen(onclickLogin = {}, onClickNavigation = {}, modifier = Modifier, onNoticeClick = {}, onTermsClick = {}, onPrivacyClick = {})
-//    //ViewPagerLoginScreen()
-//}
-
 private fun handleGoogleSignInResult(
     task: Task<GoogleSignInAccount>,
     navController: NavController,
@@ -396,11 +274,9 @@ private fun handleGoogleSignInResult(
         val account = task.getResult(ApiException::class.java)
         firebaseAuthWithGoogle(account.idToken!!, navController, context)
     } catch (e: ApiException) {
-        Log.w("TAG", "Google sign in failed", e)
         Toast.makeText(context, "Đăng nhập thất bại: ${e.message}", Toast.LENGTH_SHORT).show()
     }
 }
-
 private fun firebaseAuthWithGoogle(
     idToken: String,
     navController: NavController,
@@ -408,36 +284,43 @@ private fun firebaseAuthWithGoogle(
 ) {
     val credential = GoogleAuthProvider.getCredential(idToken, null)
     val auth = FirebaseAuth.getInstance()
+    val db = FirebaseFirestore.getInstance()
+
     auth.signInWithCredential(credential)
         .addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 val user = auth.currentUser
                 if (user != null) {
-                    // Kiểm tra xem người dùng đã tồn tại trong Firestore chưa
-                    val db = FirebaseFirestore.getInstance()
+                    FirebaseMessaging.getInstance().token.addOnCompleteListener { fcmTask ->
+                        if (fcmTask.isSuccessful) {
+                            val fcmToken = fcmTask.result
+                            db.collection("users").document(user.uid)
+                                .update("fcmToken", fcmToken)
+                                .addOnFailureListener { e ->
+                                    Log.e("FCM", "Lỗi cập nhật FCM token", e)
+                                }
+                        } else {
+                            Log.e("FCM", "Không thể lấy FCM token", fcmTask.exception)
+                        }
+                    }
                     db.collection("users").document(user.uid)
                         .get()
                         .addOnSuccessListener { document ->
                             if (document.exists()) {
-                                // Người dùng đã tồn tại, kiểm tra quyền admin
                                 val isAdmin = document.getBoolean("isAdmin") ?: false
                                 if (isAdmin) {
-                                    // Lưu trạng thái admin vào SharedPreferences
                                     val prefs = context.getSharedPreferences("admin_prefs", Context.MODE_PRIVATE)
                                     prefs.edit().putBoolean("is_admin", true).apply()
-                                    
-                                    // Chuyển hướng đến trang admin
+
                                     navController.navigate(Screens.AdminDashboard.route) {
                                         popUpTo(Graph.AUTHENTICATION) { inclusive = true }
                                     }
                                 } else {
-                                    // Không phải admin, chuyển về trang chủ
                                     navController.navigate(Graph.HOME) {
                                         popUpTo(Graph.AUTHENTICATION) { inclusive = true }
                                     }
                                 }
                             } else {
-                                // Người dùng mới, tạo tài khoản với quyền user thường
                                 val newUser = User(
                                     userId = user.uid,
                                     username = user.displayName ?: "User",
@@ -448,11 +331,9 @@ private fun firebaseAuthWithGoogle(
                                     followersCount = 0,
                                     followingCount = 0
                                 )
-
                                 db.collection("users").document(user.uid)
                                     .set(newUser)
                                     .addOnSuccessListener {
-                                        // Chuyển hướng về trang chủ
                                         navController.navigate(Graph.HOME) {
                                             popUpTo(Graph.AUTHENTICATION) { inclusive = true }
                                         }
@@ -475,11 +356,8 @@ private fun firebaseAuthWithGoogle(
                         }
                 }
             } else {
-                Toast.makeText(
-                    context,
-                    "Đăng nhập thất bại",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(context, "Đăng nhập thất bại", Toast.LENGTH_SHORT).show()
             }
         }
 }
+

@@ -1,4 +1,6 @@
-import android.util.Log
+package com.example.blinknotes.navigation
+
+import SearchScreen
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
@@ -7,8 +9,6 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
-import com.example.blinknotes.navigation.Graph
-import com.example.blinknotes.navigation.Screens
 import com.example.blinknotes.ui.addPhoto.AddPhotoScreen
 import com.example.blinknotes.ui.admin.AdminDashboard
 import com.example.blinknotes.ui.admin.PostManagement
@@ -23,43 +23,32 @@ import com.example.blinknotes.ui.notify.NotifyScreen
 import com.example.blinknotes.ui.notify.NotifyViewModel
 import com.example.blinknotes.ui.notify.SearchNotifyScreen
 import com.example.blinknotes.ui.notify.StatusScreen
+import com.example.blinknotes.ui.notify.activity.ActivityNotificationScreen
 import com.example.blinknotes.ui.notify.notificationSysTem.SystemNotificationScreen
-import com.example.blinknotes.ui.profile.ProfileScreen
-import com.example.blinknotes.ui.profile.settingProfile.SettingScreenProfile
-
-import com.example.blinknotes.ui.profile.EditProfileImageScreen
 import com.example.blinknotes.ui.profile.EditCoverImageScreen
+import com.example.blinknotes.ui.profile.EditProfileImageScreen
 import com.example.blinknotes.ui.profile.FollowingAndFollowerScreen
+import com.example.blinknotes.ui.profile.ProfileScreen
 import com.example.blinknotes.ui.profile.ViewCoverImageScreen
 import com.example.blinknotes.ui.profile.settingProfile.LinkScreen
 import com.example.blinknotes.ui.profile.settingProfile.PrivacySettingsScreen
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import com.example.blinknotes.ui.profile.settingProfile.SettingScreenProfile
 
 
 fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
                              viewModel: HomeScreenViewModel
 ) {
-
     navigation(
         route = Graph.HOME,
         startDestination = Screens.HomeScreen.route,
     ) {
-
         composable(route = Screens.HomeScreen.route,
-       //     arguments = listOf(navArgument("userId") { type = NavType.StringType })
-
-
         ) {backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId") ?: ""
             HomeScreen(navController = navController, viewmodel = viewModel)
         }
         composable(route = Screens.ProfileScreen.route +"/{userId}") {
                 backStackEntry ->
-            // Lấy userId từ arguments
             val userId = backStackEntry.arguments?.getString("userId") ?: ""
-            Log.d("Navigation", "Navigated to ProfileScreen with userId: $userId")
-            // Gọi hàm getUser() để lấy thông tin người dùng
             ProfileScreen(navController = navController, guestId = userId)
         }
         composable(route = Screens.SettingScreenProfile.route) {
@@ -86,7 +75,6 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             NotifyScreen( navController = navController,)
         }
         detailsNavGraph(navController)
-        // addPhotoNavGraph(navController)
         composable(
             route = Screens.AddPhotoScreen.route ,
             arguments = listOf(
@@ -99,8 +87,6 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
         ) {
             AddPhotoScreen(navController = navController)
         }
-
-        // Admin Routes
         composable(route = Screens.AdminDashboard.route) {
             val context = LocalContext.current
             AdminDashboard(navController = navController, context = context)
@@ -113,7 +99,6 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             val context = LocalContext.current
             PostManagement(navController, context = context)
         }
-
         composable(route = Screens.AdminReportManagement.route) {
             ReportManagement(navController)
         }
@@ -121,7 +106,6 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             SystemNotificationScreen(
                 navController = navController)
         }
-
         composable(
             route = Screens.ChatScreen.route+"/{username}/{avatarRes}/{hasMoment}/{isMomentSeen}/{isOnline}/{userId}",
             arguments = listOf(
@@ -191,7 +175,6 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
                 currentImageUrl = currentImageUrl,
                 onDismiss = { navController.navigateUp() },
                 onImageUpdated = { newImageUrl ->
-                    // Quay lại màn hình trước và truyền URL mới
                     navController.previousBackStackEntry
                         ?.savedStateHandle
                         ?.set("updatedImageUrl", newImageUrl)
@@ -215,9 +198,6 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             )
         ) { backStackEntry ->
             val imageUrl = backStackEntry.arguments?.getString("imageUrl") ?: ""
-            Log.d("NavGraph", "Encoded image URL from arguments: $imageUrl")
-            //  val decodedUrl = URLDecoder.decode(imageUrl, StandardCharsets.UTF_8.toString())
-            //   Log.d("NavGraph", "Decoded image URL: $decodedUrl")
             ViewCoverImageScreen(
                 navController = navController,
                 imageUrl = imageUrl
@@ -227,7 +207,9 @@ fun NavGraphBuilder.navGraph(navController: NavHostController, modifier: Any,
             val userId = it.arguments?.getString("userId") ?: ""
             FollowingAndFollowerScreen(navController = navController, userId = userId)
         }
-
+        composable(route = Screens.ActivityNotificationScreen.route) {
+            ActivityNotificationScreen(navController = navController)
+        }
     }
 }
 fun NavGraphBuilder.detailsNavGraph(navController: NavHostController) {
@@ -239,14 +221,10 @@ fun NavGraphBuilder.detailsNavGraph(navController: NavHostController) {
         composable(route = Screens.DetaillScreen.route + "/{postId}/{userId}") { backStackEntry ->
             val postId = backStackEntry.arguments?.getString("postId") ?: ""
             val userId = backStackEntry.arguments?.getString("userId") ?: ""
-
-            Log.d("Navigation", "Navigated to DetaillScreen with postId: $postId and userId: $userId")
             val notifyViewModel: NotifyViewModel = viewModel()
-
             DetaillScreen(navController = navController, postId = postId, userId = userId,
                 viewModelNotify = notifyViewModel
             )
         }
-
     }
 }

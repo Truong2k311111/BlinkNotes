@@ -1,8 +1,11 @@
 package com.example.blinknotes.ui.profile
 
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,7 +40,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,10 +50,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -73,11 +78,6 @@ import com.example.blinknotes.ui.home.formatNumberHeart
 import com.google.firebase.auth.FirebaseAuth
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.net.toUri
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,13 +139,10 @@ fun ProfileScreen(
     }
 
     var selectedTab by remember { mutableStateOf(0) }
-
-    // Trạng thái ẩn tab: 0 - bài viết, 1 - đã lưu, 2 - đã thả tim
     var hiddenTabs by remember { mutableStateOf(setOf<Int>()) }
 
     Scaffold(
         modifier = Modifier
-            // .nestedScroll(scrollBehavior.nestedScrollConnection)
             .fillMaxWidth(),
         topBar = {
             HeaderProfile(
@@ -206,7 +203,6 @@ fun ProfileScreen(
                     isOwnProfile = isOwnProfile
                 )
             }
-            // Hiển thị tab nếu không bị ẩn hoặc là chủ sở hữu profile
             when (selectedTab) {
                 0 -> if (isOwnProfile || !hiddenTabs.contains(0)) item {
                     TabMyPost(
@@ -231,8 +227,6 @@ fun ProfileScreen(
                 }
             }
         }
-
-        // Show Edit Profile Bottom Sheet
         if (showSheet) {
             EditProfileBottomSheet(
                 currentUsername = user?.username ?: "",
@@ -332,7 +326,6 @@ fun TopContentProfile(
         }
     }
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Cover Image Section
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -343,11 +336,8 @@ fun TopContentProfile(
                     .fillMaxSize()
                     .background(Color.LightGray)
                     .clickable {
-                        // Navigate to ViewCoverImageScreen
                         user?.coverImage?.let { coverImage ->
                             val encodedUrl = URLEncoder.encode(coverImage, StandardCharsets.UTF_8.toString())
-                            Log.d("ProfileScreen", "Cover Image URL before encode: $coverImage")
-                            Log.d("ProfileScreen", "Cover Image URL after encode: $encodedUrl")
                             navController.navigate(Screens.ViewCoverImageScreen.route.replace("{imageUrl}", encodedUrl))
                         }
                     }
@@ -373,7 +363,7 @@ fun TopContentProfile(
                 Box(
                     modifier = Modifier
                         .padding(8.dp)
-                        .size(36.dp) // Tăng nhẹ kích thước để dễ chạm hơn
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.5f))
                         .clickable(
@@ -391,25 +381,26 @@ fun TopContentProfile(
                 }
             }
         }
-
-        // Profile Info Section
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.White)
                 .padding(16.dp)
         ) {
-
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .offset(y = (-70).dp)
+                    .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(90.dp)
+                        .size(98.dp)
                         .clip(CircleShape)
                         .background(Color.White)
+                        .border(width = 4.dp, color = Color.White, shape = CircleShape)
+
                 ) {
                     AsyncImage(
                         model = user?.profileImage,
@@ -428,7 +419,9 @@ fun TopContentProfile(
                 }
 
                 Column(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .padding(top = 64.dp)
+                        .weight(1f),
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
@@ -456,7 +449,6 @@ fun TopContentProfile(
                             color = Color.Gray,
                             modifier = Modifier
                                 .clickable {
-                                    // Navigate to FollowedScreen
                                     navController.navigate(Screens.FollowingAndFollowerScreen.route + "/${user?.userId}")
                                 }
                         )
@@ -470,28 +462,28 @@ fun TopContentProfile(
                             color = Color.Gray,
                             modifier = Modifier
                                 .clickable {
-                                    // Navigate to FollowerScreen
                                     navController.navigate(Screens.FollowingAndFollowerScreen.route + "/${user?.userId}")
                                 }
                         )
                     }
                 }
             }
-
             if (!user?.bio.isNullOrEmpty()) {
                 Text(
                     text = user?.bio ?: "",
                     fontSize = 14.sp,
                     color = Color.Black,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier
+                        .offset(y = (-70).dp)
+                        .padding(top = 8.dp, bottom = 8.dp)
                 )
             }
             SocialMediaLinks(user = userLink ?: User())
 
-
             if (isOwnProfile) {
                 Button(
                     modifier = Modifier
+                        .offset(y = (-70).dp)
                         .align(alignment = Alignment.CenterHorizontally)
                         .fillMaxWidth(0.8f),
                     colors = ButtonDefaults.buttonColors(containerColor = colorResource(R.color.gainsboro)),
@@ -508,6 +500,7 @@ fun TopContentProfile(
             } else {
                 Button(
                     modifier = Modifier
+                        .offset(y = (-70).dp)
                         .align(alignment = Alignment.CenterHorizontally)
                         .fillMaxWidth(0.8f),
                     colors = if (currentStatus.isFollowing) ButtonDefaults.buttonColors(containerColor = colorResource(R.color.gainsboro))
@@ -519,14 +512,13 @@ fun TopContentProfile(
                         } else {
                             viewModel.toggleFollow(userId, idUserOfPost)
                         }
-                    /* Handle follow/unfollow action */ }
+                    }
                 ) {
                     val buttonText = when {
                         currentStatus.isFollowing && currentStatus.isFollowedBy -> "Bạn bè"
                         currentStatus.isFollowing -> "Đang Follow"
                         else -> "Follow"
                     }
-
                     Text(
                         text = buttonText,
                         fontSize = 16.sp,
@@ -623,6 +615,7 @@ fun TabContentProfile(
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
+                .offset(y = (-70).dp)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -658,7 +651,6 @@ fun TabContentProfile(
                             tint = if (index == selectedTab && (!isHidden || isOwnProfile)) Color.Black else Color.Gray
                         )
                     }
-                    // Indicator line
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -671,7 +663,9 @@ fun TabContentProfile(
             }
         }
         Divider(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .offset(y = (-70).dp)
+                .fillMaxWidth(),
             color = Color.LightGray,
             thickness = 1.dp
         )
@@ -720,14 +714,18 @@ fun TabMyPost(
 
     if (isLoading) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .offset(y = (-70).dp)
+                .fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             LoadingAnimation()
         }
     } else if (posts.isEmpty() && viewModel.drafts.isEmpty()) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .offset(y = (-70).dp)
+                .fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -739,6 +737,7 @@ fun TabMyPost(
     } else {
         FlowRow(
             modifier = Modifier
+                .offset(y = (-70).dp)
                 .fillMaxSize()
                 .padding(8.dp),
             maxItemsInEachRow = 2,
@@ -792,7 +791,7 @@ fun TabMyPost(
                     },
                     modifier = Modifier
                         .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2)
-                        .alpha(0.5f) // Làm mờ item nháp
+                        .alpha(0.5f)
                 )
             }
         }
@@ -802,7 +801,7 @@ fun TabMyPost(
         DeletePostBottomSheet(
             onDismiss = { showDeleteSheet = false },
             onDelete = {
-                showConfirmDelete = true // Hiện popup xác nhận khi nhấn Xóa
+                showConfirmDelete = true
             },
             onEdit = {
                 selectedPostId?.let { postId ->
@@ -812,8 +811,6 @@ fun TabMyPost(
             }
         )
     }
-
-    // Popup xác nhận xóa
     if (showConfirmDelete) {
         AlertDialog(
             onDismissRequest = { showConfirmDelete = false },
@@ -824,7 +821,6 @@ fun TabMyPost(
                     onClick = {
                         selectedPostId?.let { postId ->
                             viewModel.deletePost(postId) {
-                                // Cập nhật lại danh sách bài viết
                                 posts = posts.filter { it.id != postId }
                                 showConfirmDelete = false
                                 showDeleteSheet = false
@@ -851,7 +847,7 @@ fun TabMyPost(
 fun DeletePostBottomSheet(
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
-    onEdit: (() -> Unit)? = null // Thêm callback cho nút chỉnh sửa
+    onEdit: (() -> Unit)? = null
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -937,14 +933,18 @@ fun TabMySavePost(
 
     if (isLoading) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .offset(y = (-70).dp)
+                .fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             LoadingAnimation()
         }
     } else if (filteredPosts.isEmpty()) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .offset(y = (-70).dp)
+                .fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -956,6 +956,7 @@ fun TabMySavePost(
     } else {
         FlowRow(
             modifier = Modifier
+                .offset(y = (-70).dp)
                 .fillMaxSize()
                 .padding(8.dp),
             maxItemsInEachRow = 2,
@@ -977,7 +978,6 @@ fun TabMySavePost(
                         showDeleteSheet = true
                     },
                     onDelete = {
-                        // Không dùng ở đây
                     },
                     modifier = Modifier
                         .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2)
@@ -1052,14 +1052,18 @@ fun TabMyHeartPost(
 
     if (isLoading) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .offset(y = (-70).dp)
+                .fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             LoadingAnimation()
         }
     } else if (filteredPosts.isEmpty()) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .offset(y = (-70).dp)
+                .fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -1071,6 +1075,7 @@ fun TabMyHeartPost(
     } else {
         FlowRow(
             modifier = Modifier
+                .offset(y = (-70).dp)
                 .fillMaxSize()
                 .padding(8.dp),
             maxItemsInEachRow = 2,
@@ -1092,7 +1097,6 @@ fun TabMyHeartPost(
                         showDeleteSheet = true
                     },
                     onDelete = {
-                        // Không dùng ở đây
                     },
                     modifier = Modifier
                         .width((LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 2)
@@ -1195,8 +1199,6 @@ fun ItemsTabMyPost(
                 )
             }
         }
-
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1204,7 +1206,6 @@ fun ItemsTabMyPost(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // User info section with fixed width
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
@@ -1230,8 +1231,6 @@ fun ItemsTabMyPost(
                     modifier = Modifier.padding(start = 4.dp)
                 )
             }
-
-            // Heart count and eye icon section
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
@@ -1243,7 +1242,6 @@ fun ItemsTabMyPost(
                     color = colorResource(R.color.black),
                     modifier = Modifier.padding(end = 2.dp)
                 )
-
                 IconButton(onClick = { onDelete() }) {
                     Icon(
                         painter = painterResource(R.drawable.eye_outline),
@@ -1261,13 +1259,14 @@ fun ItemsTabMyPost(
 fun SocialMediaLinks(user: User) {
     val context = LocalContext.current
 
-    Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         user.facebookLink?.let { facebookLink ->
             if (facebookLink.isNotEmpty()) {
-                androidx.compose.material3.Icon(
+                Icon(
                     painter = painterResource(id = R.drawable.facebook),
                     contentDescription = "Facebook",
                     modifier = Modifier
+                        .offset(y = (-70).dp)
                         .size(32.dp)
                         .clickable {
                             openLink(context, facebookLink)
@@ -1278,10 +1277,11 @@ fun SocialMediaLinks(user: User) {
         }
         user.instagramLink?.let { instagramLink ->
             if (instagramLink.isNotEmpty()) {
-                androidx.compose.material3.Icon(
+                Icon(
                     painter = painterResource(id = R.drawable.instagram),
                     contentDescription = "Instagram",
                     modifier = Modifier
+                        .offset(y = (-70).dp)
                         .size(32.dp)
                         .clickable {
                             openLink(context, instagramLink)
@@ -1292,10 +1292,11 @@ fun SocialMediaLinks(user: User) {
         }
         user.twitterLink?.let { twitterLink ->
             if (twitterLink.isNotEmpty()) {
-                androidx.compose.material3.Icon(
+                Icon(
                     painter = painterResource(id = R.drawable.twitter),
                     contentDescription = "Twitter",
                     modifier = Modifier
+                        .offset(y = (-70).dp)
                         .size(32.dp)
                         .clickable {
                             openLink(context, twitterLink)
@@ -1315,7 +1316,6 @@ fun openLink(context: android.content.Context, url: String) {
             context.startActivity(intent)
         } else {
             Log.e("openLink", "No application can handle this request: $url")
-            // Fallback: Open in a browser
             val browserIntent = Intent(Intent.ACTION_VIEW, uri)
             context.startActivity(browserIntent)
         }

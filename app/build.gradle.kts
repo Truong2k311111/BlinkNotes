@@ -62,7 +62,7 @@ android {
     configurations.all {
         resolutionStrategy.eachDependency {
             if (requested.group == "io.grpc") {
-                useVersion("1.62.2") // hoặc phiên bản tương thích với Firebase bạn đang dùng
+                useVersion("1.62.2")
             }
         }
     }
@@ -114,10 +114,8 @@ dependencies {
     implementation ("com.google.firebase:firebase-storage")
     implementation ("com.google.android.gms:play-services-auth:20.7.0")
 
-    //Barcode
     implementation ("com.google.mlkit:barcode-scanning:17.0.0")
 
-    //Camera Permission
     implementation ("com.google.accompanist:accompanist-permissions:0.19.0")
 
 
@@ -126,8 +124,8 @@ dependencies {
 
 
 
-    implementation("com.vanniktech:emoji-google:0.15.0") // Emoji của Google
-    implementation("com.vanniktech:emoji-ios:0.15.0")   // Emoji iOS (nếu muốn)
+    implementation("com.vanniktech:emoji-google:0.15.0")
+    implementation("com.vanniktech:emoji-ios:0.15.0")
 
     implementation ("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.github.bumptech.glide:glide:4.15.1")
@@ -139,7 +137,6 @@ dependencies {
     implementation ("com.google.firebase:firebase-database:20.3.0")
     implementation ("com.google.firebase:firebase-analytics:21.6.1")
 
-    // Firebase Cloud Messaging
     implementation ("com.google.firebase:firebase-messaging:23.4.1")
 
     implementation ("com.google.firebase:firebase-common")
@@ -147,7 +144,7 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("io.grpc:grpc-core:1.62.2")
     implementation ("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation ("com.squareup.retrofit2:converter-gson:2.9.0") // Để parse JSON
+    implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.retrofit2:converter-moshi:2.9.0")
 
 

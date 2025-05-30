@@ -2,10 +2,8 @@ package com.example.blinknotes.ui.detaill
 
 import android.net.Uri
 import android.util.Log
-import androidx.compose.animation.AnimatedVisibility
-import com.example.blinknotes.R
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,39 +15,28 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -57,9 +44,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -76,7 +60,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -85,36 +68,34 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
-import androidx.wear.compose.material3.ScreenStage
 import coil.compose.AsyncImage
-import coil.compose.rememberAsyncImagePainter
+import com.example.blinknotes.R
 import com.example.blinknotes.navigation.Screens
-import com.example.blinknotes.ui.Auth.AuthViewModel
-import com.example.blinknotes.ui.Auth.images
 import com.example.blinknotes.ui.home.ExploreScreenViewModel
 import com.example.blinknotes.ui.home.LoadingAnimation
 import com.example.blinknotes.ui.home.Post
@@ -123,11 +104,6 @@ import com.example.blinknotes.ui.notify.NotifyViewModel
 import com.example.blinknotes.ui.profile.ProfileScreenViewModel
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.withStyle
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -146,7 +122,6 @@ fun DetaillScreen(navController: NavHostController,
     var reportReason by remember { mutableStateOf("") }
 
     var post by remember { mutableStateOf<Post?>(null) }
-    val scrollState = rememberScrollState()
     val currentUser = FirebaseAuth.getInstance().currentUser
     val userIdCmt = currentUser?.uid
     val comments by remember { derivedStateOf { viewModelDetail.comments } }
@@ -154,26 +129,20 @@ fun DetaillScreen(navController: NavHostController,
     val viewModelcmnt: ProfileScreenViewModel = viewModel()
     var usercommnt by remember { mutableStateOf<User?>(null) }
     var user by remember { mutableStateOf<User?>(null) }
+    val context = LocalContext.current
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val friends by viewModelNotify.usersFriend.collectAsState()
+    var showShareSheet by remember { mutableStateOf(false) }
+    var isSharing by remember { mutableStateOf(false) }
+
     LaunchedEffect(postId) {
-        Log.d("DetailScreen", "Fetching post with ID: $postId")
         viewModel.getPostByPostId(postId) { fetchedPost ->
             post = fetchedPost
             if (fetchedPost != null) {
-                Log.d("DetailScreen", "Post fetched: $fetchedPost")
-                Log.d("DetailScreen", "Fetching user with ID: ${fetchedPost.userId}")
                 viewModelDetail.getUserById(fetchedPost.userId) { fetchedUser ->
                     user = fetchedUser
-                    if (fetchedUser != null) {
-                        Log.d("DetailScreen", "User fetched: $fetchedUser")
-                    } else {
-                        Log.e("DetailScreen", "User not found for ID: ${fetchedPost.userId}")
-                    }
                 }
-                // Khi có bài post, lấy danh sách comment
-                Log.d("DetailScreen", "Fetching comments for post ID: $postId")
                 viewModelDetail.getComments(postId)
-            } else {
-                Log.e("DetailScreen", "Post not found for ID: $postId")
             }
         }
     }
@@ -183,7 +152,6 @@ fun DetaillScreen(navController: NavHostController,
         }
     }
     Scaffold(
-
         bottomBar = {
             BottomBarDetail(
                 postId = post?.id ?: "",
@@ -192,6 +160,7 @@ fun DetaillScreen(navController: NavHostController,
                 navController = navController,
                 user = usercommnt,
                 post = post,
+                onclickShare = {showShareSheet = true}
             )
                     },
         topBar = {
@@ -251,13 +220,10 @@ fun DetaillScreen(navController: NavHostController,
                     Divider(modifier = Modifier
                         .fillMaxWidth(0.8f))
                 }
-
                 item {
-                    // Tính tổng số bình luận bao gồm cả reply
                     val totalComments = comments.sumOf { comment ->
-                        1 + comment.replies.size // 1 cho comment gốc + số lượng replies
+                        1 + comment.replies.size
                     }
-
                     Text(
                         text = "$totalComments bình luận",
                         fontWeight = FontWeight.Bold,
@@ -267,7 +233,6 @@ fun DetaillScreen(navController: NavHostController,
                             .padding(12.dp),
                     )
                 }
-
                 if (comments.isEmpty()) {
                     item {
                         Box(
@@ -319,7 +284,6 @@ fun DetaillScreen(navController: NavHostController,
                         )
                     }
                 }
-
                 item {
                     Row(
                         modifier = Modifier
@@ -346,7 +310,6 @@ fun DetaillScreen(navController: NavHostController,
                 }
             }
         }
-        // Add Report Sheet
         if (showReportSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showReportSheet = false },
@@ -362,25 +325,63 @@ fun DetaillScreen(navController: NavHostController,
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
-
                     OutlinedTextField(
                         value = reportReason,
                         onValueChange = { reportReason = it },
+                        singleLine = true,
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = Color(0xFF00C78A),
+                            unfocusedBorderColor = Color.LightGray,
+                            cursorColor = Color(0xFF00C78A)
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 16.dp),
                         placeholder = { Text("Nhập lý do báo cáo") },
-                        label = { Text("Lý do báo cáo") }
-                    )
+                        label = { Text("Lý do báo cáo") },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear",
+                                modifier = Modifier
+                                    .clickable { reportReason = "" }
+                                    .padding(8.dp)
+                            )
+                        },
+                        shape = RoundedCornerShape(18.dp),
+                        maxLines = 1,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp),
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(R.drawable.flag),
+                                contentDescription = "Report",
+                                tint = Color(0xFF00C78A)
+                            )
+                        },
+                        isError = reportReason.isBlank(),
+                        )
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(
-                            onClick = { showReportSheet = false }
-                        ) {
-                            Text("Hủy")
+                            onClick = { showReportSheet = false },
+                            modifier = Modifier
+                                .widthIn(min = 80.dp)
+                                .background(Color.LightGray, RoundedCornerShape(50.dp))
+                                .border(1.dp, Color.Gray, RoundedCornerShape(50.dp))
+                                .alpha(0.8f)
+                                .clickable { showReportSheet = false }
+                                .padding(end = 8.dp),
+
+                            ) {
+                            Text("Hủy",
+                                color = Color.Black,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -389,39 +390,122 @@ fun DetaillScreen(navController: NavHostController,
                                     showReportConfirmation = true
                                     showReportSheet = false
                                 }
+                            },
+                            modifier = Modifier
+                                .widthIn(min = 80.dp)
+                                .background(Color(0xFFAC0404), RoundedCornerShape(50.dp))
+                            ,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF920015),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(50.dp),
+                            enabled = reportReason.isNotBlank(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+
+                            ) {
+                            Text("Gửi báo cáo",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                color = Color.White,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (showReportConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showReportConfirmation = false },
+                shape = RoundedCornerShape(16.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = {
+                    Text(
+                        text = "Xác nhận báo cáo",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Bạn có chắc chắn muốn gửi báo cáo này không?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModelDetail.reportPost(postId, reportReason)
+                            showReportConfirmation = false
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Gửi báo cáo")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showReportConfirmation = false }
+                    ) {
+                        Text(
+                            "Hủy",
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            )
+        }
+        if (showShareSheet) {
+            val sheetState = rememberModalBottomSheetState()
+            ModalBottomSheet(
+                onDismissRequest = { showShareSheet = false },
+                sheetState = sheetState
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Chia sẻ bài viết với bạn bè", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyColumn {
+                        items(friends) { friend ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !isSharing) {
+                                        isSharing = true
+                                        val post = post ?: return@clickable
+                                            viewModelDetail.sharePostWithUser(
+                                                post = post,
+                                                senderId = currentUserId,
+                                                receiverId = friend.userId,
+                                                onSuccess = {
+                                                    Toast.makeText(context, "Đã chia sẻ bài viết!", Toast.LENGTH_SHORT).show()
+                                                    isSharing = false
+                                                    showShareSheet = false
+                                                },
+                                                onFailure = {
+                                                    Toast.makeText(context, "Chia sẻ thất bại!", Toast.LENGTH_SHORT).show()
+                                                    isSharing = false
+                                                }
+                                            )
+                                    }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = friend.profileImage,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp).clip(CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(friend.username, style = MaterialTheme.typography.bodyLarge)
                             }
-                        ) {
-                            Text("Gửi báo cáo")
                         }
                     }
                 }
             }
         }
 
-        // Add Report Confirmation Dialog
-        if (showReportConfirmation) {
-            AlertDialog(
-                onDismissRequest = { showReportConfirmation = false },
-                title = { Text("Xác nhận báo cáo") },
-                text = { Text("Bạn có chắc muốn gửi báo cáo này không?") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            viewModelDetail.reportPost(postId, reportReason)
-                            showReportConfirmation = false
-                            reportReason = ""
-                        }
-                    ) {
-                        Text("Gửi báo cáo")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showReportConfirmation = false }) {
-                        Text("Hủy")
-                    }
-                }
-            )
-        }
     }
 }
 @Composable
@@ -443,7 +527,7 @@ fun ContentDetail(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f) // Tỷ lệ 1:1 cho ảnh vuông
+                .aspectRatio(1f)
                 .background(color = colorResource(id = R.color.cornsilk))
         ) {
             HorizontalPager(
@@ -453,7 +537,7 @@ fun ContentDetail(
                 AsyncImage(
                     model = imageUrls[page],
                     contentDescription = null,
-                    contentScale = ContentScale.Crop, // Sử dụng Crop thay vì Fit
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                         .clickable(
                             indication = null,
@@ -462,8 +546,6 @@ fun ContentDetail(
                             onclickImage(imageUrls[page])                        }
                 )
             }
-
-            // Hiển thị số trang nếu có nhiều hơn 1 ảnh
             if (pageCount > 1) {
                 Box(
                     modifier = Modifier
@@ -483,8 +565,6 @@ fun ContentDetail(
                 }
             }
         }
-
-        // Dots indicator
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -503,8 +583,6 @@ fun ContentDetail(
                 )
             }
         }
-
-        // Content section
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -517,16 +595,13 @@ fun ContentDetail(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
-
             HashtagText(
                 text = content,
                 onHashtagClick = { hashtag ->
-                    // Encode hashtag for navigation
                     val encoded = URLEncoder.encode(hashtag, StandardCharsets.UTF_8.toString())
                     navController.navigate("search_screen?query=$encoded")
                 }
             )
-
             Text(
                 text = time,
                 fontSize = 13.sp,
@@ -536,8 +611,6 @@ fun ContentDetail(
         }
     }
 }
-
-// Hàm hiển thị nội dung với hashtag có thể click
 @Composable
 fun HashtagText(
     text: String,
@@ -595,48 +668,35 @@ fun CommentItems(
     replyChain: List<String> = emptyList(),
     commentId: String = "",
     likesCount: Int = 0,
-    navController: NavController? = null // Thêm navController để điều hướng khi click tag
+    navController: NavController? = null
 ) {
     var isFavorite by remember { mutableStateOf(false) }
-    val interactionSource = remember { MutableInteractionSource() }
     var isCommenting by remember { mutableStateOf(false) }
     var showReplies by remember { mutableStateOf(false) }
     var currentParentCommentId by remember { mutableStateOf(parentCommentId) }
-
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
-
     val comment = remember { mutableStateOf("") }
-
-    // Lấy thông tin user hiện tại
     val currentUser = FirebaseAuth.getInstance().currentUser
     val currentUserId = currentUser?.uid ?: ""
     var currentUserInfo by remember { mutableStateOf<User?>(null) }
-
-    // Lấy thông tin user của comment cha
     var parentUserInfo by remember { mutableStateOf<User?>(null) }
+    var isEditing by remember { mutableStateOf(false) }
+    var editText by remember { mutableStateOf(contentComment) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showActionSheet by remember { mutableStateOf(false) }
+
     LaunchedEffect(parentCommentId) {
-        Log.d("CommentItems", "parentCommentId: $parentCommentId, userId: $userId")
         if (parentCommentId != null && parentCommentId != userId) {
-            // Lấy thông tin comment cha từ Firestore
             viewModel.getCommentById(parentCommentId) { parentComment ->
                 if (parentComment != null) {
-                    Log.d("CommentItems", "Parent comment found: $parentComment")
-                    // Lấy thông tin user của comment cha
                     viewModel.getUserById(parentComment.userId) { user ->
                         parentUserInfo = user
-                        Log.d("CommentItems", "Parent user info received: $user")
                     }
-                } else {
-                    Log.d("CommentItems", "Parent comment not found")
                 }
             }
-        } else {
-            Log.d("CommentItems", "Skipping parent user fetch: parentCommentId is null or equals userId")
         }
     }
-
-    // Kiểm tra trạng thái like của user hiện tại
     LaunchedEffect(commentId, currentUserId) {
         if (commentId.isNotEmpty() && currentUserId.isNotEmpty()) {
             viewModel.checkCommentLikeStatus(commentId, currentUserId) { isLiked ->
@@ -644,8 +704,6 @@ fun CommentItems(
             }
         }
     }
-
-    // Lấy thông tin user hiện tại
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotEmpty()) {
             viewModel.getUserById(currentUserId) { user ->
@@ -653,12 +711,6 @@ fun CommentItems(
             }
         }
     }
-
-    // Trạng thái sửa comment
-    var isEditing by remember { mutableStateOf(false) }
-    var editText by remember { mutableStateOf(contentComment) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showActionSheet by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -687,7 +739,6 @@ fun CommentItems(
                     .fillMaxWidth()
                     .padding(start = 8.dp, end = (16.dp))
             ) {
-                // Username row with author and reply chain
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = userName,
@@ -724,9 +775,7 @@ fun CommentItems(
                         )
                     }
                 }
-                // Hiển thị nút chỉnh sửa và xóa nếu là tác giả của comment
                 if (isEditing) {
-                    // Ô chỉnh sửa comment
                     OutlinedTextField(
                         value = editText,
                         onValueChange = { editText = it },
@@ -793,7 +842,6 @@ fun CommentItems(
                 }
             }
         }
-
         Row(
             modifier = Modifier
                 .wrapContentHeight()
@@ -943,33 +991,24 @@ fun CommentItems(
         }
         if (showReplies && replies.isNotEmpty()) {
             Column {
-                // Hàm đệ quy để lấy tất cả replies
                 fun getAllReplies(comments: List<Comment>): List<Comment> {
                     return comments.flatMap { comment ->
                         listOf(comment) + getAllReplies(comment.replies)
                     }
                 }
-
-                // Lấy tất cả replies và hiển thị chúng
                 val allReplies = getAllReplies(replies)
                 allReplies.forEach { reply ->
-                    // Lấy thông tin user của reply
                     var replyUserInfo by remember { mutableStateOf<User?>(null) }
-
                     LaunchedEffect(reply.userId) {
                         viewModel.getUserById(reply.userId) { user ->
                             replyUserInfo = user
                         }
                     }
-
-                    // Tạo chuỗi username cho reply chain
                     val newReplyChain = if (isReply) {
                         replyChain + userName
                     } else {
                         listOf(userName)
                     }
-
-                    // Lấy thời gian cho reply
                     val replyTime = viewModel.getTimeAgo(reply.createdAt)
                     CommentItems(
                         avatarUserComment = replyUserInfo?.profileImage ?: "",
@@ -991,7 +1030,6 @@ fun CommentItems(
                 }
             }
         }
-        // BottomSheet sửa/xóa khi long press comment của mình
         if (showActionSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showActionSheet = false },
@@ -1002,14 +1040,11 @@ fun CommentItems(
                         .fillMaxWidth()
                         .padding(vertical = 24.dp, horizontal = 16.dp)
                 ) {
-                    // Tiêu đề
                     Text(
                         text = "Tùy chọn bình luận",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(bottom = 20.dp)
                     )
-
-                    // Nút chỉnh sửa
                     RowOptionItem(
                         text = "Chỉnh sửa",
                         icon = Icons.Default.Edit,
@@ -1018,10 +1053,7 @@ fun CommentItems(
                             showActionSheet = false
                         }
                     )
-
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    // Nút xóa
                     RowOptionItem(
                         text = "Xóa",
                         icon = Icons.Default.Delete,
@@ -1032,10 +1064,7 @@ fun CommentItems(
                             showActionSheet = false
                         }
                     )
-
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    // Nút hủy
                     RowOptionItem(
                         text = "Hủy",
                         icon = Icons.Default.Close,
@@ -1046,7 +1075,6 @@ fun CommentItems(
                 }
             }
         }
-        // Dialog xác nhận xóa comment
         if (showDeleteDialog) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
@@ -1067,8 +1095,6 @@ fun CommentItems(
         }
     }
 }
-
-// --- Hiển thị nội dung comment với tag @username có thể click ---
 @Composable
 fun TagUserText(
     text: String,
@@ -1084,7 +1110,6 @@ fun TagUserText(
                 append(text.substring(lastIndex, start))
             }
             val tag = text.substring(start, end)
-            // Gắn blinkNotesId (không phải username) vào annotation
             pushStringAnnotation(tag = "TAG", annotation = tag.removePrefix("@"))
             withStyle(style = SpanStyle(color = Color(0xFF2196F3), fontWeight = FontWeight.Bold)) {
                 append(tag)
@@ -1102,7 +1127,6 @@ fun TagUserText(
         onClick = { offset ->
             annotatedString.getStringAnnotations(tag = "TAG", start = offset, end = offset)
                 .firstOrNull()?.let { annotation ->
-                    // annotation.item là blinkNotesId
                     onTagClick(annotation.item)
                 }
         }
@@ -1131,9 +1155,6 @@ fun HeaderDetaill(
     val isOwnPost = idUserOfPost == userId
     var showSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-
-    // Kiểm tra trạng thái follow khi component được tạo
     LaunchedEffect(idUserOfPost) {
         if (userId.isNotEmpty() && idUserOfPost.isNotEmpty()) {
             viewModel.checkFollowStatus(userId, idUserOfPost)
@@ -1324,6 +1345,7 @@ fun BottomBarDetail(
     parentCommentId: String,
     navController: NavController,
     post: Post? = null,
+    onclickShare: () -> Unit = {  },
 ) {
 
     var comment by remember { mutableStateOf("") }
@@ -1331,51 +1353,34 @@ fun BottomBarDetail(
     var isCommenting by remember { mutableStateOf(false) }
     var isShowBottomBar by remember { mutableStateOf(false) }
     var isLiked by remember { mutableStateOf(false) }
-    var isSaved by remember { mutableStateOf(false) }
-
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val viewModel: DetailScreenViewModel = viewModel()
     val viewModelEx: ExploreScreenViewModel = viewModel()
-    val currentUser = FirebaseAuth.getInstance().currentUser
-    
-    // Lấy trạng thái like từ ExploreScreenViewModel
     val postLikeStatus by viewModelEx.postLikeStatus.collectAsState()
-    val posts by viewModelEx.posts.collectAsState()
     val comments by remember { derivedStateOf { viewModel.comments } }
     val totalComments = comments.sumOf { comment ->
-        1 + comment.replies.size // 1 cho comment gốc + số lượng replies
+        1 + comment.replies.size
     }
+    val followingIds = user?.following ?: emptyList()
+    val followerIds = user?.followers ?: emptyList()
+    val allUsers by viewModelEx.usersAll.collectAsState()
+    val friendIds = (followingIds + followerIds).distinct().filter { it != user?.userId }
+    val friendUsers = friendIds.mapNotNull { allUsers[it] }
+    var showTagSuggestions by remember { mutableStateOf(false) }
+    var tagQuery by remember { mutableStateOf("") }
 
-    // Kiểm tra trạng thái like khi component được tạo
     LaunchedEffect(postId, userId) {
         if (postId.isNotEmpty() && userId.isNotEmpty()) {
             viewModelEx.checkPostLikeStatus(postId, userId)
         }
     }
-    
-    // Cập nhật trạng thái like khi postLikeStatus thay đổi
     LaunchedEffect(postLikeStatus) {
         if (postId.isNotEmpty()) {
             isLiked = postLikeStatus[postId] ?: false
         }
     }
-
-    // Lấy danh sách bạn bè hoặc người đã follow (từ user.following và user.followers)
-    val followingIds = user?.following ?: emptyList()
-    val followerIds = user?.followers ?: emptyList()
-    val allUsers by viewModelEx.users.collectAsState()
-    // Lấy unique userId (bạn bè hoặc đang follow)
-    val friendIds = (followingIds + followerIds).distinct().filter { it != user?.userId }
-    val friendUsers = friendIds.mapNotNull { allUsers[it] }
-
-    // Trạng thái hiển thị gợi ý tag
-    var showTagSuggestions by remember { mutableStateOf(false) }
-    var tagQuery by remember { mutableStateOf("") }
-
-    // Hiển thị gợi ý khi nhập @ hoặc @text
     LaunchedEffect(comment) {
-        // Nếu nhập @ ở bất kỳ đâu trong chuỗi, show gợi ý
         val regex = Regex("@(\\w*)$")
         val match = regex.find(comment)
         if (match != null) {
@@ -1389,7 +1394,6 @@ fun BottomBarDetail(
             tagQuery = ""
         }
     }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1403,7 +1407,6 @@ fun BottomBarDetail(
                 .background(Color.LightGray)
                 .height(1.dp)
         )
-
         if (!isShowBottomBar) {
             Row(
                 modifier = Modifier
@@ -1429,8 +1432,6 @@ fun BottomBarDetail(
                 ) {
                     Text(text = "Bình luận...", color = Color.Gray)
                 }
-
-                // Các icon Like, Bookmark, Chat, Share với số liệu thực
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(horizontal = 4.dp)
@@ -1448,16 +1449,15 @@ fun BottomBarDetail(
                             tint = if (isLiked) Color.Red else Color.Gray
                         )
                     }
-                    // Hiển thị số tim từ bài Post
                     Text(text = "${post?.likesCount ?: 0}", fontSize = 12.sp, color = Color.Gray)
                 }
                 IconWithText(R.drawable.chat_processing_outline, "${totalComments}", onclickImage = {})
-                IconWithText(R.drawable.share_all, "0", onclickImage = {}) // Chưa có tính năng share
+                IconWithText(R.drawable.share_all, "0", onclickImage = {onclickShare()})
                 IconWithText(R.drawable.content_save_outline,"", onclickImage = {
                     if (postId.isNotEmpty() && userId.isNotEmpty()) {
                         viewModelEx.togglePostSave(postId, userId)
                     }
-                }) // Chưa có tính năng share
+                })
 
 
             }
@@ -1465,14 +1465,12 @@ fun BottomBarDetail(
         if (isCommenting || comment.isNotBlank() || showEmojiPicker) {
             LaunchedEffect(isCommenting) {
                 if (isCommenting) {
-                    delay(200) // Đợi UI ổn đ��nh để focus
+                    delay(200)
                     focusRequester.requestFocus()
                     keyboardController?.show()
                 }
             }
-
             Column {
-                // Gợi ý tag bạn bè khi nhập @
                 if (showTagSuggestions && friendUsers.isNotEmpty()) {
                     val filteredFriends = if (tagQuery.isBlank()) friendUsers
                         else friendUsers.filter { it.username.contains(tagQuery, ignoreCase = true) }
@@ -1487,7 +1485,6 @@ fun BottomBarDetail(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        // Thay thế @... bằng @username
                                         val newComment = comment.replace(Regex("@\\w*$"), "${userTag.blinkNotesId} ")
                                         comment = newComment
                                         showTagSuggestions = false
@@ -1509,7 +1506,6 @@ fun BottomBarDetail(
                         }
                     }
                 }
-
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1524,7 +1520,6 @@ fun BottomBarDetail(
                             .clip(CircleShape),
                         contentScale = ContentScale.Crop,
                     )
-
                     TextField(
                         value = comment,
                         onValueChange = { comment = it },
@@ -1576,10 +1571,6 @@ fun BottomBarDetail(
                 }
             }
         }
-
-        // Hiển thị emoji picker
-        // nếu showEmojiPicker là true
-        // và bàn phím đã được ẩn
         if (showEmojiPicker) {
             Divider(
                 modifier = Modifier
@@ -1596,32 +1587,24 @@ fun BottomBarDetail(
                 EmojiTable(
                     onTextAdded = { emoji ->
                         if (emoji.isEmpty()) {
-                            // Nếu emoji rỗng, đóng emoji picker
                             showEmojiPicker = false
                             focusRequester.requestFocus()
                             keyboardController?.show()
                         } else if (emoji == "DELETE") {
-                            // Nếu là lệnh xóa, xóa emoji cuối cùng
                             if (comment.isNotEmpty()) {
-                                // Tìm vị trí của emoji cuối cùng bằng cách tìm ký tự Unicode cuối cùng
                                 val lastEmojiIndex = comment.lastIndexOf("\\u")
                                 if (lastEmojiIndex >= 0) {
-                                    // Nếu tìm thấy emoji, xóa nó và các ký tự Unicode liên quan
-                                    val endIndex = lastEmojiIndex + 6 // Độ dài của một emoji Unicode là 6 ký tự
+                                    val endIndex = lastEmojiIndex + 6
                                     if (endIndex <= comment.length) {
                                         comment = comment.substring(0, lastEmojiIndex)
                                     }
                                 } else {
-                                    // Nếu không tìm thấy emoji, xóa ký tự cuối cùng
                                     comment = comment.dropLast(1)
                                 }
-                                // Đảm bảo con nháy ở cuối
                                 focusRequester.requestFocus()
                             }
                         } else {
-                            // Thêm emoji vào cuối text
                             comment = comment + emoji
-                            // Đảm bảo con nháy ở cuối bằng cách focus lại
                             focusRequester.requestFocus()
                         }
                     },
@@ -1631,8 +1614,6 @@ fun BottomBarDetail(
         }
     }
 }
-
-// Hàm tạo icon có số lượng bên dưới
 @Composable
 fun IconWithText(iconRes: Int, count: String, onclickImage: () -> Unit) {
     Column(
@@ -1659,7 +1640,6 @@ fun EmojiTable(
             .fillMaxWidth()
             .background(Color.White)
     ) {
-        // Header with close button and delete button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1673,14 +1653,12 @@ fun EmojiTable(
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
-
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Nút xóa emoji cuối cùng
                 IconButton(
-                    onClick = { onTextAdded("DELETE") }, // Sử dụng "DELETE" làm mã đặc biệt
+                    onClick = { onTextAdded("DELETE") },
                     modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
@@ -1689,10 +1667,8 @@ fun EmojiTable(
                         tint = Color.Gray
                     )
                 }
-
-                // Nút đóng emoji picker
                 IconButton(
-                    onClick = { onTextAdded("") }, // Empty string to close emoji picker
+                    onClick = { onTextAdded("") },
                     modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
@@ -1703,16 +1679,12 @@ fun EmojiTable(
                 }
             }
         }
-
-        // Emoji grid using LazyColumn with rows
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp)
         ) {
-            // Group emojis into rows of 8
             val emojiRows = emojis.chunked(8)
-            
             items(emojiRows) { rowEmojis ->
                 Row(
                     modifier = Modifier
@@ -1745,138 +1717,137 @@ fun EmojiTable(
     }
 }
 
-private const val EMOJI_COLUMNS = 10
-
 private val emojis = listOf(
-    "\ud83d\ude00", // Grinning Face
-    "\ud83d\ude01", // Grinning Face With Smiling Eyes
-    "\ud83d\ude02", // Face With Tears of Joy
-    "\ud83d\ude03", // Smiling Face With Open Mouth
-    "\ud83d\ude04", // Smiling Face With Open Mouth and Smiling Eyes
-    "\ud83d\ude05", // Smiling Face With Open Mouth and Cold Sweat
-    "\ud83d\ude06", // Smiling Face With Open Mouth and Tightly-Closed Eyes
-    "\ud83d\ude09", // Winking Face
-    "\ud83d\ude0a", // Smiling Face With Smiling Eyes
-    "\ud83d\ude0b", // Face Savouring Delicious Food
-    "\ud83d\ude0e", // Smiling Face With Sunglasses
-    "\ud83d\ude0d", // Smiling Face With Heart-Shaped Eyes
-    "\ud83d\ude18", // Face Throwing a Kiss
-    "\ud83d\ude17", // Kissing Face
-    "\ud83d\ude19", // Kissing Face With Smiling Eyes
-    "\ud83d\ude1a", // Kissing Face With Closed Eyes
-    "\u263a", // White Smiling Face
-    "\ud83d\ude42", // Slightly Smiling Face
-    "\ud83e\udd17", // Hugging Face
-    "\ud83d\ude07", // Smiling Face With Halo
-    "\ud83e\udd13", // Nerd Face
-    "\ud83e\udd14", // Thinking Face
-    "\ud83d\ude10", // Neutral Face
-    "\ud83d\ude11", // Expressionless Face
-    "\ud83d\ude36", // Face Without Mouth
-    "\ud83d\ude44", // Face With Rolling Eyes
-    "\ud83d\ude0f", // Smirking Face
-    "\ud83d\ude23", // Persevering Face
-    "\ud83d\ude25", // Disappointed but Relieved Face
-    "\ud83d\ude2e", // Face With Open Mouth
-    "\ud83e\udd10", // Zipper-Mouth Face
-    "\ud83d\ude2f", // Hushed Face
-    "\ud83d\ude2a", // Sleepy Face
-    "\ud83d\ude2b", // Tired Face
-    "\ud83d\ude34", // Sleeping Face
-    "\ud83d\ude0c", // Relieved Face
-    "\ud83d\ude1b", // Face With Stuck-Out Tongue
-    "\ud83d\ude1c", // Face With Stuck-Out Tongue and Winking Eye
-    "\ud83d\ude1d", // Face With Stuck-Out Tongue and Tightly-Closed Eyes
-    "\ud83d\ude12", // Unamused Face
-    "\ud83d\ude13", // Face With Cold Sweat
-    "\ud83d\ude14", // Pensive Face
-    "\ud83d\ude15", // Confused Face
-    "\ud83d\ude43", // Upside-Down Face
-    "\ud83e\udd11", // Money-Mouth Face
-    "\ud83d\ude32", // Astonished Face
-    "\ud83d\ude37", // Face With Medical Mask
-    "\ud83e\udd12", // Face With Thermometer
-    "\ud83e\udd15", // Face With Head-Bandage
-    "\u2639", // White Frowning Face
-    "\ud83d\ude41", // Slightly Frowning Face
-    "\ud83d\ude16", // Confounded Face
-    "\ud83d\ude1e", // Disappointed Face
-    "\ud83d\ude1f", // Worried Face
-    "\ud83d\ude24", // Face With Look of Triumph
-    "\ud83d\ude22", // Crying Face
-    "\ud83d\ude2d", // Loudly Crying Face
-    "\ud83d\ude26", // Frowning Face With Open Mouth
-    "\ud83d\ude27", // Anguished Face
-    "\ud83d\ude28", // Fearful Face
-    "\ud83d\ude29", // Weary Face
-    "\ud83d\ude2c", // Grimacing Face
-    "\ud83d\ude30", // Face With Open Mouth and Cold Sweat
-    "\ud83d\ude31", // Face Screaming in Fear
-    "\ud83d\ude33", // Flushed Face
-    "\ud83d\ude35", // Dizzy Face
-    "\ud83d\ude21", // Pouting Face
-    "\ud83d\ude20", // Angry Face
-    "\ud83d\ude08", // Smiling Face With Horns
-    "\ud83d\udc7f", // Imp
-    "\ud83d\udc79", // Japanese Ogre
-    "\ud83d\udc7a", // Japanese Goblin
-    "\ud83d\udc80", // Skull
-    "\ud83d\udc7b", // Ghost
-    "\ud83d\udc7d", // Extraterrestrial Alien
-    "\ud83e\udd16", // Robot Face
-    "\ud83d\udca9", // Pile of Poo
-    "\ud83d\ude3a", // Smiling Cat Face With Open Mouth
-    "\ud83d\ude38", // Grinning Cat Face With Smiling Eyes
-    "\ud83d\ude39", // Cat Face With Tears of Joy
-    "\ud83d\ude3b", // Smiling Cat Face With Heart-Shaped Eyes
-    "\ud83d\ude3c", // Cat Face With Wry Smile
-    "\ud83d\ude3d", // Kissing Cat Face With Closed Eyes
-    "\ud83d\ude40", // Weary Cat Face
-    "\ud83d\ude3f", // Crying Cat Face
-    "\ud83d\ude3e", // Pouting Cat Face
-    "\ud83d\udc66", // Boy
-    "\ud83d\udc67", // Girl
-    "\ud83d\udc68", // Man
-    "\ud83d\udc69", // Woman
-    "\ud83d\udc74", // Older Man
-    "\ud83d\udc75", // Older Woman
-    "\ud83d\udc76", // Baby
-    "\ud83d\udc71", // Person With Blond Hair
-    "\ud83d\udc6e", // Police Officer
-    "\ud83d\udc72", // Man With Gua Pi Mao
-    "\ud83d\udc73", // Man With Turban
-    "\ud83d\udc77", // Construction Worker
-    "\u26d1", // Helmet With White Cross
-    "\ud83d\udc78", // Princess
-    "\ud83d\udc82", // Guardsman
-    "\ud83d\udd75", // Sleuth or Spy
-    "\ud83c\udf85", // Father Christmas
-    "\ud83d\udc70", // Bride With Veil
-    "\ud83d\udc7c", // Baby Angel
-    "\ud83d\udc86", // Face Massage
-    "\ud83d\udc87", // Haircut
-    "\ud83d\ude4d", // Person Frowning
-    "\ud83d\ude4e", // Person With Pouting Face
-    "\ud83d\ude45", // Face With No Good Gesture
-    "\ud83d\ude46", // Face With OK Gesture
-    "\ud83d\udc81", // Information Desk Person
-    "\ud83d\ude4b", // Happy Person Raising One Hand
-    "\ud83d\ude47", // Person Bowing Deeply
-    "\ud83d\ude4c", // Person Raising Both Hands in Celebration
-    "\ud83d\ude4f", // Person With Folded Hands
-    "\ud83d\udde3", // Speaking Head in Silhouette
-    "\ud83d\udc64", // Bust in Silhouette
-    "\ud83d\udc65", // Busts in Silhouette
-    "\ud83d\udeb6", // Pedestrian
-    "\ud83c\udfc3", // Runner
-    "\ud83d\udc6f", // Woman With Bunny Ears
-    "\ud83d\udc83", // Dancer
-    "\ud83d\udd74", // Man in Business Suit Levitating
-    "\ud83d\udc6b", // Man and Woman Holding Hands
-    "\ud83d\udc6c", // Two Men Holding Hands
-    "\ud83d\udc6d", // Two Women Holding Hands
-    "\ud83d\udc8f" // Kiss
+    "\ud83d\ude00",
+    "\ud83d\ude01",
+    "\ud83d\ude02",
+    "\ud83d\ude03",
+    "\ud83d\ude04",
+    "\ud83d\ude05",
+    "\ud83d\ude06",
+    "\ud83d\ude09",
+    "\ud83d\ude0a",
+    "\ud83d\ude0b",
+    "\ud83d\ude0e",
+    "\ud83d\ude0d",
+    "\ud83d\ude18",
+    "\ud83d\ude17",
+    "\ud83d\ude19",
+    "\ud83d\ude1a",
+    "\u263a",
+    "\ud83d\ude42",
+    "\ud83e\udd17",
+    "\ud83d\ude07",
+    "\ud83e\udd13",
+    "\ud83e\udd14",
+    "\ud83d\ude10",
+    "\ud83d\ude11",
+    "\ud83d\ude36",
+    "\ud83d\ude44",
+    "\ud83d\ude0f",
+    "\ud83d\ude23",
+    "\ud83d\ude25",
+    "\ud83d\ude2e",
+    "\ud83e\udd10",
+    "\ud83d\ude2f",
+    "\ud83d\ude2a",
+    "\ud83d\ude2b",
+    "\ud83d\ude34",
+    "\ud83d\ude0c",
+    "\ud83d\ude1b",
+    "\ud83d\ude1c",
+    "\ud83d\ude1d",
+    "\ud83d\ude12",
+    "\ud83d\ude13",
+    "\ud83d\ude14",
+    "\ud83d\ude15",
+    "\ud83d\ude43",
+    "\ud83e\udd11",
+    "\ud83d\ude32",
+    "\ud83d\ude37",
+    "\ud83e\udd12",
+    "\ud83e\udd15",
+    "\u2639",
+    "\ud83d\ude41",
+    "\ud83d\ude16",
+    "\ud83d\ude1e",
+    "\ud83d\ude1f",
+    "\ud83d\ude24",
+    "\ud83d\ude22",
+    "\ud83d\ude2d",
+    "\ud83d\ude26",
+    "\ud83d\ude27",
+    "\ud83d\ude28",
+    "\ud83d\ude29",
+    "\ud83d\ude2c",
+    "\ud83d\ude30",
+    "\ud83d\ude31",
+    "\ud83d\ude33",
+    "\ud83d\ude35",
+    "\ud83d\ude21",
+    "\ud83d\ude20",
+    "\ud83d\ude08",
+    "\ud83d\udc7f",
+    "\ud83d\udc79",
+    "\ud83d\udc7a",
+    "\ud83d\udc80",
+    "\ud83d\udc7b",
+    "\ud83d\udc7d",
+    "\ud83e\udd16",
+    "\ud83d\udca9",
+    "\ud83d\ude3a",
+    "\ud83d\ude38",
+    "\ud83d\ude39",
+    "\ud83d\ude3b",
+    "\ud83d\ude3c",
+    "\ud83d\ude3d",
+    "\ud83d\ude40",
+    "\ud83d\ude3f",
+    "\ud83d\ude3e",
+    "\ud83d\udc66",
+    "\ud83d\udc67",
+    "\ud83d\udc68",
+    "\ud83d\udc69",
+    "\ud83d\udc74",
+    "\ud83d\udc75",
+    "\ud83d\udc76",
+    "\ud83d\udc71",
+    "\ud83d\udc6e",
+    "\ud83d\udc72",
+    "\ud83d\udc73",
+    "\ud83d\udc77",
+    "\u26d1",
+    "\ud83d\udc78",
+    "\ud83d\udc82",
+    "\ud83d\udd75",
+    "\ud83c\udf85",
+    "\ud83d\udc70",
+    "\ud83d\udc7c",
+    "\ud83d\udc86",
+    "\ud83d\udc87",
+    "\ud83d\ude4d",
+    "\ud83d\ude4e",
+    "\ud83d\ude45",
+    "\ud83d\ude46",
+    "\ud83d\udc81",
+    "\ud83d\ude4b",
+    "\ud83d\ude47",
+    "\ud83d\ude4c",
+    "\ud83d\ude4f",
+    "\ud83d\udde3",
+    "\ud83d\udc64",
+    "\ud83d\udc65",
+    "\ud83d\udeb6",
+    "\ud83c\udfc3",
+    "\ud83d\udc6f",
+    "\ud83d\udc83",
+    "\ud83d\udd74",
+    "\ud83d\udc6b",
+    "\ud83d\udc6c",
+    "\ud83d\udc6d",
+    "\ud83d\udc8f"
 )
+
 @Composable
 fun RowOptionItem(
     text: String,

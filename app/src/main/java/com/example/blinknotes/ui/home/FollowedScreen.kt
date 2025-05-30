@@ -1,6 +1,5 @@
 package com.example.blinknotes.ui.home
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,7 +28,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,7 +35,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,14 +68,8 @@ import coil.request.ImageRequest
 import com.example.blinknotes.R
 import com.example.blinknotes.navigation.Screens
 import com.example.blinknotes.ui.detaill.DetailScreenViewModel
-import com.example.blinknotes.ui.eventClick.handleClick
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -91,7 +80,6 @@ fun FollowedScreen(
     val followedUsers by viewModel.followedUsers.collectAsState()
     val suggestedUsers by viewModel.suggestedUsers.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val viewModelDetail = DetailScreenViewModel()
     val viewModelEx = ExploreScreenViewModel()
     var posts by remember { mutableStateOf<List<Post>>(emptyList()) }
@@ -100,7 +88,7 @@ fun FollowedScreen(
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
-    val spacing = 8.dp * 3 // 2 khoảng giữa + 1 padding ngoài
+    val spacing = 8.dp * 3
     val itemWidth = (screenWidth - spacing) / 2
 
     LaunchedEffect(Unit) {
@@ -133,7 +121,6 @@ fun FollowedScreen(
                 )
             }
         } else if (followedUsers.isEmpty()) {
-            // Empty state with suggested users
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -159,21 +146,16 @@ fun FollowedScreen(
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Center
                         )
-                        
                         Spacer(modifier = Modifier.height(8.dp))
-                        
                         Text(
                             text = "Follow người dùng để xem bài viết của họ",
                             fontSize = 14.sp,
                             color = Color.Gray,
                             textAlign = TextAlign.Center
                         )
-                        
                         Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
-                
-                // Suggested users section
                 if (suggestedUsers.isNotEmpty()) {
                     item {
                         Text(
@@ -185,7 +167,6 @@ fun FollowedScreen(
                         
                         Spacer(modifier = Modifier.height(8.dp))
                     }
-                    
                     items(suggestedUsers) { user ->
                         SuggestedUserItem(
                             user = user,
@@ -247,7 +228,7 @@ fun FollowedScreen(
                                         }
                                     }
                                 },
-                                onLikeClick = { // Handle like click
+                                onLikeClick = {
                                     viewModelEx.togglePostLike(post.id, post.userId)
                                 },
 
@@ -307,8 +288,6 @@ fun FollowedScreen(
                         isFollowing = true
                     )
                 }
-                
-                // Suggested users section
                 if (suggestedUsers.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
@@ -366,13 +345,11 @@ fun FollowedUserItem(
                 .fillMaxWidth()
                 .padding(12.dp)
         ) {
-            // User info row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar and username
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -430,85 +407,12 @@ fun FollowedUserItem(
                 }
             }
 
-            // Recent posts grid or empty state
             if (user.recentPost.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                
-//                Row(
-//                    modifier = Modifier.fillMaxWidth(),
-//                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-//                ) {
-//                    user.recentPost.forEach { post ->
-//                        PostPreview(
-//                            post = post,
-//                            modifier = Modifier.weight(1f),
-//                            onClick = { onPostClick(post.id) }
-//                        )
-//                        // Empty placeholder with same weight
-//                        Spacer(modifier = Modifier.weight(1f))
-//                    }
-//                }
+
             }
         }
     }
-}
-
-@Composable
-fun PostPreview(
-    post: RecentPost,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = modifier
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick)
-            .fillMaxWidth()
-            .padding(8.dp)
-            .background(Color.White)
-            .clip(RoundedCornerShape(12.dp))
-    ) {
-        AsyncImage(
-            model = post.imageUrl,
-            contentDescription = "Post Image",
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp)),
-            contentScale = ContentScale.Crop
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = post.caption,
-            fontSize = 14.sp,
-            color = Color.Black,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 8.dp),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = formatTimeAgo(post.timestamp),
-            fontSize = 12.sp,
-            color = Color.Gray,
-            fontWeight = FontWeight.Light,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-
-    }
-    Divider(
-        color = Color(0xFFEEEEEE),
-        thickness = 1.dp,
-        modifier = Modifier.padding(horizontal = 8.dp)
-    )
-    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable
@@ -534,7 +438,6 @@ fun SuggestedUserItem(
                 .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Profile image
             Box(
                 modifier = Modifier
                     .size(60.dp)
@@ -551,10 +454,7 @@ fun SuggestedUserItem(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-
             Spacer(modifier = Modifier.width(16.dp))
-
-            // User info
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -563,25 +463,19 @@ fun SuggestedUserItem(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-
                 Spacer(modifier = Modifier.height(4.dp))
-
                 Text(
                     text = user.username,
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
-
                 Spacer(modifier = Modifier.height(4.dp))
-
                 Text(
                     text = "${user.followersCount} người theo dõi",
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
             }
-
-            // Follow button
             Button(
                 onClick = onFollowClick,
                 colors = ButtonDefaults.buttonColors(
@@ -627,23 +521,6 @@ fun IconButton(
         content()
     }
 }
-
-fun formatTimeAgo(timestamp: Date): String {
-    val now = Date()
-    val diffInMillis = now.time - timestamp.time
-    val diffInSeconds = diffInMillis / 1000
-    val diffInMinutes = diffInSeconds / 60
-    val diffInHours = diffInMinutes / 60
-    val diffInDays = diffInHours / 24
-
-    return when {
-        diffInSeconds < 60 -> "Vừa xong"
-        diffInMinutes < 60 -> "$diffInMinutes phút trước"
-        diffInHours < 24 -> "$diffInHours giờ trước"
-        diffInDays < 30 -> "$diffInDays ngày trước"
-        else -> SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(timestamp)
-    }
-}
 @Composable
 fun ItemsFeedFolow(
     imageLink: String?,
@@ -661,7 +538,6 @@ fun ItemsFeedFolow(
     var currentLikes by remember { mutableStateOf(numberHeart ?: 0) }
     val interactionSource = remember { MutableInteractionSource() }
 
-    // Cập nhật isFavoriteState và currentLikes khi prop thay đổi
     LaunchedEffect(isFavorite, numberHeart) {
         isFavoriteState = isFavorite
         currentLikes = numberHeart ?: 0
@@ -770,9 +646,7 @@ fun ItemsFeedFolow(
                                 interactionSource = interactionSource,
                                 indication = null
                             ) {
-                                // Cập nhật trạng thái tim ngay lập tức
                                 isFavoriteState = !isFavoriteState
-                                // Gọi hàm cập nhật trên server
                                 onLikeClick()
                             }
                     )

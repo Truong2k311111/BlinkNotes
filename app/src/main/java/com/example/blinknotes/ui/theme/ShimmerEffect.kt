@@ -71,15 +71,12 @@ fun ShimmerMessageItem(
                     .padding(4.dp),
                 horizontalAlignment = if (isSender) Alignment.End else Alignment.Start
             ) {
-                // Image placeholder
                 Box(
                     modifier = Modifier
                         .size(200.dp)
                         .background(brush, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
-                // Message placeholder
                 Box(
                     modifier = Modifier
                         .width(200.dp)
@@ -87,8 +84,6 @@ fun ShimmerMessageItem(
                         .background(brush, shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-
-                // Timestamp placeholder
                 Box(
                     modifier = Modifier
                         .width(60.dp)

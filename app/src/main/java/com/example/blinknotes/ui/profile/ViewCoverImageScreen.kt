@@ -1,8 +1,11 @@
 package com.example.blinknotes.ui.profile
 
-import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -22,7 +25,6 @@ fun ViewCoverImageScreen(
     navController: NavController,
     imageUrl: String
 ) {
-    Log.d("ViewCoverImageScreen", "Received image URL: $imageUrl")
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -54,10 +56,8 @@ fun ViewCoverImageScreen(
                 modifier = Modifier.fillMaxWidth(),
                 contentScale = ContentScale.Fit,
                 onLoading = {
-                    // You can add a loading indicator here if needed
                 },
                 onError = { error ->
-                    // You can handle error state here
                     println("Error loading image: ${error.result.throwable.localizedMessage}")
                 }
             )

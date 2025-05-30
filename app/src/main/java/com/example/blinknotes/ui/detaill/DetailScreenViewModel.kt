@@ -1,7 +1,6 @@
 package com.example.blinknotes.ui.detaill
 
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,21 +9,28 @@ import androidx.lifecycle.viewModelScope
 import com.example.blinknotes.data.helper.FirestoreHelper
 import com.example.blinknotes.ui.home.Post
 import com.example.blinknotes.ui.home.User
+import com.example.blinknotes.ui.notify.FcmApi
+import com.example.blinknotes.ui.notify.NotificationBody
+import com.example.blinknotes.ui.notify.SendMessageDto
 import com.example.blinknotes.ui.notify.notificationSysTem.NotificationType
 import com.example.blinknotes.ui.notify.notificationSysTem.SystemNotification
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+import retrofit2.create
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import com.google.firebase.firestore.FieldValue
-import kotlinx.coroutines.tasks.await
 import java.util.UUID
-import kotlin.text.set
 
 data class Comment(
     val id: String = "",
@@ -41,31 +47,92 @@ data class Comment(
 class DetailScreenViewModel : ViewModel() {
     var comments by mutableStateOf<List<Comment>>(emptyList())
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
-//    private val _comments = MutableStateFlow<List<Comment>>(emptyList())
-//    val comments: StateFlow<List<Comment>> = _comments
-    /**
-     * Thêm comment vào Firestore và cập nhật danh sách comments.
-     */
+
+    private val api: FcmApi = Retrofit.Builder()
+        .baseUrl("https://blinknotes-api.onrender.com/")
+        .addConverterFactory(MoshiConverterFactory.create())
+        .build()
+        .create()
+
     fun addComment(postId: String, userId: String, content: String, parentCommentId: String? = null) {
         viewModelScope.launch {
             FirestoreHelper.addComment(postId, userId, content, parentCommentId) { success ->
                 if (success) {
-                    Log.d("DetailScreen", "Comment added successfully, re-fetching comments...")
                     getComments(postId)
-
-                } else {
-                    Log.e("DetailScreen", "Failed to add comment.")
+                    sendTagNotificationsIfNeeded(postId, userId, content, api = api, coroutineScope = viewModelScope)                } else {
                 }
             }
         }
     }
+    private fun sendTagNotificationsIfNeeded(
+        postId: String,
+        senderId: String,
+        content: String,
+        api: FcmApi,
+        coroutineScope: CoroutineScope
+    ) {
+        val regex = Regex("@(\\w+)")
+        val tags = regex.findAll(content).map { it.groupValues[1] }.toSet()
+        if (tags.isEmpty()) return
 
-    /**
-     * Lấy danh sách comments của một bài viết.
-     */
+        val db = FirebaseFirestore.getInstance()
+        val senderRef = db.collection("users").document(senderId)
+
+        senderRef.get().addOnSuccessListener { senderDoc ->
+            val senderName = senderDoc.getString("username") ?: "Người dùng"
+            val imageUser = senderDoc.getString("profileImage") ?: ""
+
+            tags.forEach { blinkNotesId ->
+                db.collection("users")
+                    .whereEqualTo("blinkNotesId", "@$blinkNotesId")
+                    .get()
+                    .addOnSuccessListener { result ->
+                        val taggedUserDoc = result.documents.firstOrNull()
+                        val taggedUserId = taggedUserDoc?.id
+                        val receiverToken = taggedUserDoc?.getString("fcmToken")
+
+                        if (taggedUserId != null && taggedUserId != senderId) {
+                            val notificationId = UUID.randomUUID().toString()
+                            val notification = mapOf(
+                                "id" to notificationId,
+                                "type" to "TAGGED_IN_COMMENT",
+                                "title" to "Bạn được tag trong bình luận",
+                                "content" to "$senderName đã tag bạn trong một bình luận.",
+                                "userId" to senderId,
+                                "postId" to postId,
+                                "commentId" to "",
+                                "timestamp" to System.currentTimeMillis(),
+                                "receiverId" to taggedUserId,
+                                "isRead" to false,
+                                "imageUser" to imageUser
+                            )
+
+                            db.collection("activity_notifications")
+                                .document(notificationId)
+                                .set(notification)
+                            if (!receiverToken.isNullOrBlank()) {
+                                coroutineScope.launch {
+                                    try {
+                                        val messageDto = SendMessageDto(
+                                            to = receiverToken,
+                                            notification = NotificationBody(
+                                                title = "Bạn được tag trong bình luận",
+                                                body = "$senderName đã tag bạn trong một bình luận."
+                                            )
+                                        )
+                                        api.sendMessage(messageDto)
+                                        Log.d("TAG_NOTIFICATION", "FCM notification sent successfully")
+                                    } catch (e: Exception) {
+                                        Log.e("TAG_NOTIFICATION", "Failed to send FCM notification", e)
+                                    }
+                                }
+                            }
+                        }
+                    }
+            }
+        }
+    }
     fun getComments(postId: String) {
-        Log.d("DetailScreen", "Fetching comments for post ID: $postId")
-
         db.collection("posts").document(postId).get()
             .addOnSuccessListener { postSnapshot ->
                 val postAuthorId = postSnapshot.getString("userId")
@@ -79,10 +146,6 @@ class DetailScreenViewModel : ViewModel() {
                 Log.e("DetailScreen", "Error fetching post details: ${e.message}")
             }
     }
-
-    /**
-     * Lấy danh sách comments từ Firestore, sắp xếp theo thời gian.
-     */
     fun fetchComments(postId: String, postAuthorId: String) {
         db.collection("comments")
             .whereEqualTo("postId", postId)
@@ -102,33 +165,23 @@ class DetailScreenViewModel : ViewModel() {
                         isAuthor = (data["userId"] as String) == postAuthorId
                     )
                 }
-
-                // Gom nhóm các comments theo parentCommentId
                 val groupedComments = allComments.groupBy { it.parentCommentId }
                 val topLevelComments = groupedComments[null] ?: emptyList()
 
-                // Hàm đệ quy để xây dựng cây comments
                 fun buildCommentTree(comment: Comment): Comment {
                     val replies = groupedComments[comment.id] ?: emptyList()
                     return comment.copy(
                         replies = replies.map { buildCommentTree(it) }
                     )
                 }
-
-                // Xây dựng cây comments cho mỗi comment gốc
                 val structuredComments = topLevelComments.map { buildCommentTree(it) }
 
                 comments = structuredComments
-                Log.d("DetailScreen", "Comments fetched successfully: ${comments.size} comments found.")
             }
             .addOnFailureListener { e ->
                 Log.e("DetailScreen", "Error fetching comments: ${e.message}")
             }
     }
-
-    /**
-     * Lấy thông tin user từ Firestore.
-     */
     fun getUserById(userId: String, callback: (User?) -> Unit) {
         viewModelScope.launch {
             db.collection("users").document(userId).get()
@@ -148,10 +201,6 @@ class DetailScreenViewModel : ViewModel() {
                 }
         }
     }
-
-    /**
-     * Lấy thông tin user từ Firestore bằng blinkNotesId.
-     */
     fun getUserByBlinkNotesId(blinkNotesId: String, callback: (User?) -> Unit) {
         db.collection("users")
             .whereEqualTo("blinkNotesId", "@$blinkNotesId")
@@ -165,8 +214,6 @@ class DetailScreenViewModel : ViewModel() {
                 callback(null)
             }
     }
-
-    // Kiểm tra trạng thái like của user cho một comment
     fun checkCommentLikeStatus(commentId: String, userId: String, callback: (Boolean) -> Unit) {
         db.collection("comments").document(commentId)
             .get()
@@ -191,11 +238,9 @@ class DetailScreenViewModel : ViewModel() {
                 } else {
                     likes + userId
                 }
-                
                 db.collection("comments").document(commentId)
                     .update("likes", newLikes)
                     .addOnSuccessListener {
-                        // Cập nhật UI sau khi like/unlike thành công
                         comments = comments.map { comment ->
                             if (comment.id == commentId) {
                                 comment.copy(likes = newLikes)
@@ -215,13 +260,11 @@ class DetailScreenViewModel : ViewModel() {
     fun getTimeAgo(timestamp: Long): String {
         val now = System.currentTimeMillis()
         val diff = now - timestamp
-
         val seconds = diff / 1000
         val minutes = seconds / 60
         val hours = minutes / 60
         val days = hours / 24
         val weeks = days / 7
-
         return when {
             minutes < 1 -> "Vừa xong"
             minutes < 60 -> "$minutes phút trước"
@@ -229,14 +272,11 @@ class DetailScreenViewModel : ViewModel() {
             days < 7 -> "$days ngày trước"
             weeks < 4 -> "$weeks tuần trước"
             else -> {
-                // Nếu hơn 1 tháng, hiển thị dạng "30 tháng ba"
                 val sdf = SimpleDateFormat("dd 'tháng' MM", Locale("vi"))
                 sdf.format(Date(timestamp))
             }
         }
     }
-
-    // Lấy thông tin comment theo ID
     fun getCommentById(commentId: String, callback: (Comment?) -> Unit) {
         db.collection("comments")
             .document(commentId)
@@ -329,21 +369,14 @@ class DetailScreenViewModel : ViewModel() {
     fun checkFollowStatus(currentUserId: String, targetUserId: String) {
         viewModelScope.launch {
             try {
-                // Lấy thông tin người dùng hiện tại
                 val currentUserDoc = db.collection("users").document(currentUserId).get().await()
                 val currentUser = currentUserDoc.toObject(User::class.java)
-
-                // Lấy thông tin người dùng mục tiêu
                 val targetUserDoc = db.collection("users").document(targetUserId).get().await()
                 val targetUser = targetUserDoc.toObject(User::class.java)
 
                 if (currentUser != null && targetUser != null) {
-                    // Kiểm tra xem người dùng hiện tại có follow người mục tiêu không
                     val isFollowing = currentUser.following.contains(targetUserId)
-                    // Kiểm tra xem người mục tiêu có follow người dùng hiện tại không
                     val isFollowedBy = targetUser.following.contains(currentUserId)
-
-                    // Lưu trạng thái với key là targetUserId
                     _followStatus.value = _followStatus.value + (targetUserId to FollowStatus(isFollowing, isFollowedBy))
                 }
             } catch (e: Exception) {
@@ -351,7 +384,41 @@ class DetailScreenViewModel : ViewModel() {
             }
         }
     }
-
+    private fun callApiSendFollowNotification(
+        senderId: String,
+        receiverId: String,
+        senderName: String,
+        api: FcmApi
+    ) {
+        val db = FirebaseFirestore.getInstance()
+        db.collection("users").document(receiverId)
+            .get()
+            .addOnSuccessListener { receiverDocument ->
+                val receiverToken = receiverDocument.getString("fcmToken")
+                if (receiverToken != null) {
+                    val messageDto = SendMessageDto(
+                        to = receiverToken,
+                        notification = NotificationBody(
+                            title = "Bạn có người theo dõi mới",
+                            body = "$senderName đã theo dõi bạn."
+                        )
+                    )
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            api.sendMessage(messageDto)
+                            Log.d("FCM_FOLLOW", "Gửi thông báo follow thành công")
+                        } catch (e: Exception) {
+                            Log.e("FCM_FOLLOW", "Gửi thông báo follow thất bại", e)
+                        }
+                    }
+                } else {
+                    Log.e("FCM_FOLLOW", "FCM token không tồn tại cho người nhận")
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("FCM_FOLLOW", "Không thể lấy thông tin người nhận", e)
+            }
+    }
     fun toggleFollow(userId: String, targetUserId: String) {
         viewModelScope.launch {
             try {
@@ -366,8 +433,6 @@ class DetailScreenViewModel : ViewModel() {
 
                 if (currentUser != null && targetUser != null) {
                     val isCurrentlyFollowing = currentUser.following.contains(targetUserId)
-
-                    // Update Firestore
                     currentUserRef.update(
                         "following",
                         if (isCurrentlyFollowing) FieldValue.arrayRemove(targetUserId)
@@ -379,42 +444,126 @@ class DetailScreenViewModel : ViewModel() {
                         if (isCurrentlyFollowing) FieldValue.arrayRemove(userId)
                         else FieldValue.arrayUnion(userId)
                     )
-
-                    // Cập nhật lại trạng thái sau khi hoàn tất
                     val updatedCurrentUser = currentUserRef.get().await().toObject(User::class.java)
                     val updatedTargetUser = targetUserRef.get().await().toObject(User::class.java)
-
                     _followStatus.value = _followStatus.value + (targetUserId to FollowStatus(
                         isFollowing = updatedCurrentUser?.following?.contains(targetUserId) == true,
                         isFollowedBy = updatedTargetUser?.following?.contains(userId) == true
                     ))
+                    if (!isCurrentlyFollowing) {
+                        try {
+                            val notificationId = UUID.randomUUID().toString()
+                            val senderName = currentUser.username
+                            val senderImage = currentUser.profileImage
+                            val notification = mapOf(
+                                "id" to notificationId,
+                                "type" to "FOLLOWED_USER",
+                                "title" to "Bạn có người theo dõi mới",
+                                "content" to "$senderName đã theo dõi bạn.",
+                                "userId" to userId,
+                                "postId" to null,
+                                "commentId" to null,
+                                "timestamp" to System.currentTimeMillis(),
+                                "receiverId" to targetUserId,
+                                "isRead" to false,
+                                "imageUser" to senderImage
+                            )
+                            db.collection("activity_notifications")
+                                .document(notificationId)
+                                .set(notification)
+
+                            callApiSendFollowNotification(
+                                senderId = userId,
+                                receiverId = targetUserId,
+                                senderName = senderName,
+                                api = api
+                            )
+                        } catch (e: Exception) {
+                            Log.e("DetailScreenViewModel", "Error sending follow notification", e)
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("DetailScreenViewModel", "Error toggling follow status", e)
             }
         }
     }
+
     fun reportPost(postId: String, reason: String) {
         val db = FirebaseFirestore.getInstance()
         val currentUser = FirebaseAuth.getInstance().currentUser
 
         if (currentUser != null) {
-            // Create system notification
-            createSystemNotification(
-                type = NotificationType.POST_REPORTED,
-                title = "Báo cáo bài viết",
-                content = "Bài viết bị báo cáo với lý do: $reason",
-                postId = postId,
-                reportedBy = currentUser.uid
-            )
+            db.collection("users").document(currentUser.uid)
+                .get()
+                .addOnSuccessListener { reporterDoc ->
+                    val reporterName = reporterDoc.getString("username") ?: ""
+                    val reporterImage = reporterDoc.getString("profileImage") ?: ""
+                    db.collection("posts").document(postId)
+                        .get()
+                        .addOnSuccessListener { postDoc ->
+                            val postAuthorId = postDoc.getString("userId") ?: ""
+                            val postCaption = postDoc.getString("caption") ?: ""
+                            val postImage = (postDoc.get("imageUrls") as? List<String>)?.firstOrNull() ?: ""
+                            db.collection("users").document(postAuthorId)
+                                .get()
+                                .addOnSuccessListener { authorDoc ->
+                                    val authorName = authorDoc.getString("username") ?: ""
+                                    val authorImage = authorDoc.getString("profileImage") ?: ""
+                                    createSystemNotification(
+                                        type = NotificationType.POST_REPORTED,
+                                        title = "Báo cáo bài viết",
+                                        content = "Bài viết bị báo cáo với lý do: $reason",
+                                        reporterId = currentUser.uid,
+                                        reporterName = reporterName,
+                                        reporterImage = reporterImage,
+                                        reportedId = postId,
+                                        reportedName = postCaption,
+                                        reportedImage = postImage,
+                                        reportReason = reason
+                                    )
+                                    db.collection("users")
+                                        .whereEqualTo("isAdmin", true)
+                                        .get()
+                                        .addOnSuccessListener { adminDocs ->
+                                            adminDocs.documents.forEach { adminDoc ->
+                                                val adminToken = adminDoc.getString("fcmToken")
+                                                if (!adminToken.isNullOrBlank()) {
+                                                    val messageDto = SendMessageDto(
+                                                        to = adminToken,
+                                                        notification = NotificationBody(
+                                                            title = "Báo cáo bài viết mới",
+                                                            body = "$reporterName đã báo cáo bài viết của $authorName"
+                                                        )
+                                                    )
+                                                    viewModelScope.launch {
+                                                        try {
+                                                            api.sendMessage(messageDto)
+                                                            Log.d("REPORT_NOTIFICATION", "FCM notification sent to admin successfully")
+                                                        } catch (e: Exception) {
+                                                            Log.e("REPORT_NOTIFICATION", "Failed to send FCM notification to admin", e)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                }
+                        }
+                }
         }
     }
+
     fun createSystemNotification(
         type: NotificationType,
         title: String,
         content: String,
-        postId: String,
-        reportedBy: String = ""
+        reporterId: String = "",
+        reporterName: String = "",
+        reporterImage: String = "",
+        reportedId: String = "",
+        reportedName: String = "",
+        reportedImage: String = "",
+        reportReason: String = ""
     ) {
         val notification = SystemNotification(
             id = UUID.randomUUID().toString(),
@@ -422,21 +571,31 @@ class DetailScreenViewModel : ViewModel() {
             content = content,
             type = type,
             createdAt = System.currentTimeMillis(),
-            isRead = false
+            isRead = false,
+            reporterId = reporterId,
+            reporterName = reporterName,
+            reporterImage = reporterImage,
+            reportedId = reportedId,
+            reportedName = reportedName,
+            reportedImage = reportedImage,
+            reportReason = reportReason
         )
 
         val db = FirebaseFirestore.getInstance()
         db.collection("system_notifications")
             .document(notification.id)
             .set(notification)
+            .addOnSuccessListener {
+                Log.d("SYSTEM_NOTIFICATION", "Notification created successfully")
+            }
+            .addOnFailureListener { e ->
+                Log.e("SYSTEM_NOTIFICATION", "Error creating notification", e)
+            }
     }
-
-    // Cập nhật nội dung comment
     fun updateComment(commentId: String, newContent: String) {
         db.collection("comments").document(commentId)
             .update("content", newContent)
             .addOnSuccessListener {
-                // Cập nhật lại danh sách comments trong UI
                 comments = comments.map { comment ->
                     if (comment.id == commentId) comment.copy(content = newContent) else comment
                 }
@@ -445,13 +604,10 @@ class DetailScreenViewModel : ViewModel() {
                 Log.e("DetailScreenViewModel", "Error updating comment: ${e.message}")
             }
     }
-
-    // Xóa comment
     fun deleteComment(commentId: String) {
         db.collection("comments").document(commentId)
             .delete()
             .addOnSuccessListener {
-                // Xóa comment khỏi danh sách comments trong UI (bao gồm cả replies)
                 fun removeCommentRecursive(list: List<Comment>): List<Comment> {
                     return list.filter { it.id != commentId }.map { comment ->
                         comment.copy(replies = removeCommentRecursive(comment.replies))
@@ -463,5 +619,59 @@ class DetailScreenViewModel : ViewModel() {
                 Log.e("DetailScreenViewModel", "Error deleting comment: ${e.message}")
             }
     }
-
+    fun sharePostWithUser(
+        post: Post,
+        senderId: String,
+        receiverId: String,
+        onSuccess: (() -> Unit)? = null,
+        onFailure: ((Exception) -> Unit)? = null
+    ) {
+        val db = FirebaseFirestore.getInstance()
+        val postPreview = mapOf(
+            "postId" to post.id,
+            "imageUrls" to post.imageUrls.firstOrNull(),
+            "caption" to post.caption,
+            "content" to post.content,
+            "sharedAt" to System.currentTimeMillis()
+        )
+        val messageData = mapOf(
+            "senderId" to senderId,
+            "receiverId" to receiverId,
+            "content" to "[shared_post]",
+            "postPreview" to postPreview,
+            "timestamp" to System.currentTimeMillis(),
+            "isRead" to false,
+            "contentSendImage" to "",
+            "imageUrls" to emptyList<String>()
+        )
+        db.collection("contentchat")
+            .add(messageData)
+            .addOnSuccessListener {
+                onSuccess?.invoke()
+                val db = FirebaseFirestore.getInstance()
+                db.collection("users").document(receiverId)
+                    .get()
+                    .addOnSuccessListener { receiverDoc ->
+                        val receiverToken = receiverDoc.getString("fcmToken")
+                        if (!receiverToken.isNullOrBlank()) {
+                            val messageDto = SendMessageDto(
+                                to = receiverToken,
+                                notification = NotificationBody(
+                                    title = "Bạn nhận được một bài viết được chia sẻ",
+                                    body = "Bạn vừa nhận được một bài viết được chia sẻ từ người khác."
+                                )
+                            )
+                            viewModelScope.launch {
+                                try {
+                                    api.sendMessage(messageDto)
+                                    Log.d("SHARE_POST_NOTIFICATION", "FCM notification sent to receiver successfully")
+                                } catch (e: Exception) {
+                                    Log.e("SHARE_POST_NOTIFICATION", "Failed to send FCM notification to receiver", e)
+                                }
+                            }
+                        }
+                    }
+            }
+            .addOnFailureListener { e -> onFailure?.invoke(e) }
+    }
 }

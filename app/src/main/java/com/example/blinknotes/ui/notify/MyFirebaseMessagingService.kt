@@ -16,8 +16,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val title = remoteMessage.notification?.title ?: ""
         val body = remoteMessage.notification?.body ?: ""
         val data = remoteMessage.data
-        
-        // Handle notification click action
         val clickAction = data["click_action"] ?: ""
         val senderId = data["sender_id"] ?: ""
         val senderName = data["sender_name"] ?: ""
@@ -68,7 +66,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             .document(userId)
             .update("fcmToken", token)
             .addOnFailureListener { e ->
-                // Handle token update failure
                 e.printStackTrace()
             }
     }

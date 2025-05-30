@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -29,20 +28,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Scaffold
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextField
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,10 +65,6 @@ import androidx.wear.compose.material3.IconButton
 import coil.compose.rememberAsyncImagePainter
 import com.example.blinknotes.R
 import com.example.blinknotes.ui.home.LoadingAnimation
-import android.net.Uri
-import androidx.compose.runtime.LaunchedEffect
-import com.example.blinknotes.ui.home.User
-import com.example.blinknotes.ui.home.ExploreScreenViewModel
 
 @Composable
 fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenViewModel = viewModel()) {
@@ -91,23 +82,11 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
         rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
             viewModel.addSelectedImages(uris)
         }
-
-    // Lấy postId (draftId) từ arguments cho đúng với route add_photo?postId={postId}
-    // Sửa: Nếu không truyền postId hoặc postId là null/rỗng/"null" thì coi là đăng mới
     val draftIdRaw = navController.currentBackStackEntry?.arguments?.getString("postId")
     var isEditing by remember { mutableStateOf(false) }
     val draftId = draftIdRaw?.takeIf { !it.isNullOrEmpty() && it != "null" }
-
-    var showBlockUserSheet by remember { mutableStateOf(false) }
-    var blockedUserIds by remember { mutableStateOf<List<String>>(emptyList()) }
-    var searchUserText by remember { mutableStateOf("") }
-    val exploreViewModel: ExploreScreenViewModel = viewModel()
-    val users by exploreViewModel.users.collectAsState()
-    val userList = users.values.toList()
-
     LaunchedEffect(draftIdRaw) {
         if (draftId != null) {
-            // Kiểm tra tài liệu có tồn tại không, nếu không thì không phải là edit
             viewModel.loadDraft(draftId) { draft ->
                 if (draft.id.isNotBlank()) {
                     caption = draft.caption
@@ -116,7 +95,6 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                     viewModel.updateSelectedImages(emptyList())
                     isEditing = true
                 } else {
-                    // Nếu không tìm thấy draft, coi như đăng mới
                     viewModel.clearUploadedImageUrls()
                     viewModel.updateSelectedImages(emptyList())
                     isEditing = false
@@ -186,9 +164,7 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    // Nút Đăng hoặc Cập nhật
                     if (!isEditing) {
-                        // Đăng mới
                         Box(
                             modifier = Modifier
                                 .weight(0.9f)
@@ -225,7 +201,6 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                             )
                         }
                     } else {
-                        // Cập nhật
                         Box(
                             modifier = Modifier
                                 .weight(0.9f)
@@ -360,13 +335,10 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                     .fillMaxHeight(0.3f)
                     .padding(8.dp)
             ) {
-                // Hiển thị ảnh đã upload (URL)
                 items(uploadedImageUrls) { url ->
                     ItemsImage(
                         painter = rememberAsyncImagePainter(url),
-                        onEdit = { },
                         onDelete = {
-                            // Xóa ảnh đã upload khỏi danh sách
                             viewModel.setUploadedImageUrls(uploadedImageUrls - url)
                         },
                         modifier = Modifier
@@ -375,11 +347,9 @@ fun AddPhotoScreen(navController: NavHostController, viewModel: AddPhotoScreenVi
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
-                // Hiển thị ảnh mới chọn (Uri local)
                 items(selectedImages) { uri ->
                     ItemsImage(
                         painter = rememberAsyncImagePainter(uri),
-                        onEdit = { },
                         onDelete = {
                             viewModel.updateSelectedImages(selectedImages - uri)
                         },
@@ -519,7 +489,6 @@ fun CustomTextFieldContent(
 fun ItemsImage(
     painter: Painter = rememberAsyncImagePainter(null),
     onDelete: () -> Unit,
-    onEdit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -534,7 +503,6 @@ fun ItemsImage(
                 .fillMaxSize(),
             contentScale = ContentScale.Crop,
         )
-
         IconButton(
             onClick = { onDelete() },
             modifier = Modifier
@@ -546,22 +514,6 @@ fun ItemsImage(
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Xóa ảnh",
-                tint = Color.White,
-                modifier = Modifier
-                    .size(26.dp)
-            )
-        }
-        IconButton(
-            onClick = { onEdit() },
-            modifier = Modifier
-                .size(28.dp)
-                .align(Alignment.BottomEnd)
-                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                .padding(4.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = "Chỉnh sửa ảnh",
                 tint = Color.White,
                 modifier = Modifier
                     .size(26.dp)

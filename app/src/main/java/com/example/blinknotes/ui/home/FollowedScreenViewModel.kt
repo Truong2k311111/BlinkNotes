@@ -19,7 +19,10 @@ class FollowedScreenViewModel : ViewModel() {
     
     private val _followedUsers = MutableStateFlow<List<User>>(emptyList())
     val followedUsers: StateFlow<List<User>> = _followedUsers
-    
+
+    private val _followersUsers = MutableStateFlow<List<User>>(emptyList())
+    val followersUsers: StateFlow<List<User>> = _followersUsers
+
     private val _suggestedUsers = MutableStateFlow<List<User>>(emptyList())
     val suggestedUsers: StateFlow<List<User>> = _suggestedUsers
     
@@ -48,7 +51,6 @@ class FollowedScreenViewModel : ViewModel() {
                 .limit(limit.toLong())
                 .get()
                 .await()
-
             posts.documents.mapNotNull { doc ->
                 val imageUrls = doc.get("imageUrls") as? List<String>
                 val firstImageUrl = imageUrls?.firstOrNull() ?: return@mapNotNull null
@@ -65,39 +67,27 @@ class FollowedScreenViewModel : ViewModel() {
             emptyList()
         }
     }
-    
     fun loadFollowedUsers() {
         val currentUserId = auth.currentUser?.uid ?: return
-        
         _isLoading.value = true
-        
         viewModelScope.launch {
             try {
-                // Get current user's following list
                 val currentUserDoc = db.collection("users").document(currentUserId).get().await()
                 val followingList = currentUserDoc.get("following") as? List<String> ?: emptyList()
-                
                 if (followingList.isEmpty()) {
                     _followedUsers.value = emptyList()
                     _hasFollowedUsers.value = false
                     _isLoading.value = false
                     return@launch
                 }
-                
                 _hasFollowedUsers.value = true
-                
-                // Get user details for each followed user
                 val users = mutableListOf<User>()
-                
                 for (userId in followingList) {
                     val userDoc = db.collection("users").document(userId).get().await()
                     if (userDoc.exists()) {
                         val followers = userDoc.get("followers") as? List<String> ?: emptyList()
                         val following = userDoc.get("following") as? List<String> ?: emptyList()
-                        
-                        // Get recent posts for this user
                         val recentPosts = getRecentPosts(userId, 2)
-                        
                         val user = User(
                             userId = userId,
                             username = userDoc.getString("username") ?: "",
@@ -113,11 +103,9 @@ class FollowedScreenViewModel : ViewModel() {
                             followingCount = following.size,
                             recentPost = recentPosts
                         )
-                        
                         users.add(user)
                     }
                 }
-                
                 _followedUsers.value = users
                 _userIdListFollowed.value = users.map { it.userId }
             } catch (e: Exception) {
@@ -127,30 +115,22 @@ class FollowedScreenViewModel : ViewModel() {
             }
         }
     }
-    
     fun loadSuggestedUsers() {
         val currentUserId = auth.currentUser?.uid ?: return
-        
         viewModelScope.launch {
             try {
-                // Get current user's following list
                 val currentUserDoc = db.collection("users").document(currentUserId).get().await()
                 val followingList = currentUserDoc.get("following") as? List<String> ?: emptyList()
-                
-                // Get all users except current user and already followed users
                 val querySnapshot = db.collection("users")
                     .whereNotIn("userId", listOf(currentUserId) + followingList)
                     .limit(10)
                     .get()
                     .await()
-                
                 val users = mutableListOf<User>()
-                
                 for (doc in querySnapshot.documents) {
                     val userId = doc.id
                     val followers = doc.get("followers") as? List<String> ?: emptyList()
                     val following = doc.get("following") as? List<String> ?: emptyList()
-                    
                     val user = User(
                         userId = userId,
                         username = doc.getString("username") ?: "",
@@ -164,33 +144,24 @@ class FollowedScreenViewModel : ViewModel() {
                         coverImage = doc.getString("coverImage") ?: "",
                         followersCount = followers.size,
                         followingCount = following.size,
-                        recentPost = emptyList() // We don't need recent posts for suggested users
+                        recentPost = emptyList()
                     )
-                    
                     users.add(user)
                 }
-                
                 _suggestedUsers.value = users
             } catch (e: Exception) {
                 Log.e("FollowedViewModel", "Error loading suggested users", e)
             }
         }
     }
-    
     fun followUser(targetUserId: String) {
         val currentUserId = auth.currentUser?.uid ?: return
-        
         viewModelScope.launch {
             try {
-                // Add to current user's following list
                 db.collection("users").document(currentUserId)
                     .update("following", FieldValue.arrayUnion(targetUserId))
-                
-                // Add current user to target user's followers list
                 db.collection("users").document(targetUserId)
                     .update("followers", FieldValue.arrayUnion(currentUserId))
-                
-                // Refresh lists
                 loadFollowedUsers()
                 loadSuggestedUsers()
             } catch (e: Exception) {
@@ -198,21 +169,14 @@ class FollowedScreenViewModel : ViewModel() {
             }
         }
     }
-    
     fun unfollowUser(targetUserId: String) {
         val currentUserId = auth.currentUser?.uid ?: return
-        
         viewModelScope.launch {
             try {
-                // Remove from current user's following list
                 db.collection("users").document(currentUserId)
                     .update("following", FieldValue.arrayRemove(targetUserId))
-                
-                // Remove current user from target user's followers list
                 db.collection("users").document(targetUserId)
                     .update("followers", FieldValue.arrayRemove(currentUserId))
-                
-                // Refresh lists
                 loadFollowedUsers()
                 loadSuggestedUsers()
             } catch (e: Exception) {
@@ -220,7 +184,6 @@ class FollowedScreenViewModel : ViewModel() {
             }
         }
     }
-    
     fun loadUserPosts(userId: String) {
         viewModelScope.launch {
             try {
@@ -228,7 +191,6 @@ class FollowedScreenViewModel : ViewModel() {
                     .whereEqualTo("userId", userId)
                     .get()
                     .await()
-                
                 val postsList = mutableListOf<Post>()
                 for (doc in postsSnapshot) {
                     val postData = doc.data
@@ -238,7 +200,6 @@ class FollowedScreenViewModel : ViewModel() {
                     val content = postData["content"] as? String ?: ""
                     val createdAt = doc.getLong("createdAt") ?: 0L
                     val likesCount = (postData["likes"] as? List<String> ?: emptyList()).size
-                    
                     val post = Post(
                         id = postId,
                         userId = userId,
@@ -249,11 +210,8 @@ class FollowedScreenViewModel : ViewModel() {
                         createdAt = createdAt,
                         likesCount = likesCount
                     )
-                    
                     postsList.add(post)
                 }
-                
-                // Cập nhật danh sách bài đăng của người dùng
                 val currentPosts = _userPosts.value.toMutableMap()
                 currentPosts[userId] = postsList
                 _userPosts.value = currentPosts
@@ -262,10 +220,49 @@ class FollowedScreenViewModel : ViewModel() {
             }
         }
     }
-    
-    fun isFollowing(targetUserId: String): Boolean {
-        val currentUserId = auth.currentUser?.uid ?: return false
-        return _followedUsers.value.any { it.userId == targetUserId }
+    fun loadFollowersUsers(targetUserId: String? = null) {
+        val userId = targetUserId ?: auth.currentUser?.uid ?: return
+        _isLoading.value = true
+        viewModelScope.launch {
+            try {
+                val userDoc = db.collection("users").document(userId).get().await()
+                val followersList = userDoc.get("followers") as? List<String> ?: emptyList()
+                if (followersList.isEmpty()) {
+                    _followersUsers.value = emptyList()
+                    _isLoading.value = false
+                    return@launch
+                }
+                val users = mutableListOf<User>()
+                for (followerId in followersList) {
+                    val followerDoc = db.collection("users").document(followerId).get().await()
+                    if (followerDoc.exists()) {
+                        val followers = followerDoc.get("followers") as? List<String> ?: emptyList()
+                        val following = followerDoc.get("following") as? List<String> ?: emptyList()
+                        val user = User(
+                            userId = followerId,
+                            username = followerDoc.getString("username") ?: "",
+                            email = followerDoc.getString("email") ?: "",
+                            profileImage = followerDoc.getString("profileImage") ?: "",
+                            followers = followers,
+                            following = following,
+                            createdAt = followerDoc.getLong("createdAt") ?: System.currentTimeMillis(),
+                            blinkNotesId = followerDoc.getString("blinkNotesId") ?: "",
+                            bio = followerDoc.getString("bio") ?: "",
+                            coverImage = followerDoc.getString("coverImage") ?: "",
+                            followersCount = followers.size,
+                            followingCount = following.size,
+                            recentPost = emptyList()
+                        )
+                        users.add(user)
+                    }
+                }
+                _followersUsers.value = users
+            } catch (e: Exception) {
+                Log.e("FollowedViewModel", "Error loading followers users", e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
     }
 }
 
@@ -274,4 +271,4 @@ data class RecentPost(
     val imageUrl: String,
     val caption: String,
     val timestamp: Date
-) 
+)

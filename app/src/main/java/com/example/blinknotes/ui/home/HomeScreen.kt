@@ -1,6 +1,5 @@
 package com.example.blinknotes.ui.home
 
-import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -8,50 +7,31 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.ScrollableDefaults
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,42 +40,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.wear.compose.material3.IconButton
-import coil.compose.AsyncImage
 import com.example.blinknotes.R
 import com.example.blinknotes.navigation.Screens
-import com.example.blinknotes.ui.Auth.images
-import com.example.blinknotes.ui.eventClick.handleClick
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
 
 @Composable
@@ -164,7 +130,6 @@ fun ExploreScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val gridState = rememberLazyStaggeredGridState()
 
-    // Handle pull-to-refresh
     LaunchedEffect(gridState) {
         snapshotFlow {
             gridState.firstVisibleItemIndex == 0 &&
@@ -175,7 +140,6 @@ fun ExploreScreen(
             }
         }
     }
-
     Column(
         modifier = Modifier
             .fillMaxWidth(),
@@ -183,20 +147,18 @@ fun ExploreScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize() .padding(horizontal = 3.dp)
         ) {
             ImageListItem(
                 navController = navController,
                 userId = userIdLogin,
                 viewModel = viewModel
             )
-
-            // Show refresh indicator at the top
             if (isRefreshing) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(8.dp),
+                        .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     LoadingAnimation(
@@ -222,7 +184,7 @@ fun TabContent(pagerState: PagerState, scope: CoroutineScope, onSearchClick: () 
         animatableOffset.animateTo(
             target,
             animationSpec = tween(
-                durationMillis = 500, // 👈 chỉnh thời gian dài hơn để di chuyển chậm
+                durationMillis = 500,
                 easing = LinearOutSlowInEasing
             )
         )
@@ -280,7 +242,6 @@ fun TabContent(pagerState: PagerState, scope: CoroutineScope, onSearchClick: () 
             onClick = onSearchClick,
             modifier = Modifier.size(50.dp)
         ) {
-
             Icon(
                 painter = painterResource(R.drawable.icon_search),
                 contentDescription = "Search",
@@ -296,27 +257,20 @@ fun WavyLineBox(
 ) {
     Canvas(
         modifier = modifier
-            .size(width = 100.dp, height = 10.dp) // ngang dài hơn dọc
+            .size(width = 100.dp, height = 10.dp)
     ) {
         val width = size.width
         val height = size.height
 
         val path = Path().apply {
-            // Bắt đầu từ trái
             moveTo(0f, height * 0.45f)
-            // Lên chéo phải
             lineTo(width * 0.45f, height * 0.35f)
-            // Lên gấp góc trên
             lineTo(width * 0.45f, height * 0.15f)
-            // Qua phải dưới
             lineTo(width, height * 0.55f)
-            // Xuống giữa
             lineTo(width * 0.55f, height * 0.65f)
-            // Xuống đáy
             lineTo(width * 0.55f, height * 0.85f)
             close()
         }
-
         drawPath(
             path = path,
             brush = Brush.linearGradient(
@@ -336,11 +290,14 @@ fun LoadingAnimation(
     spaceBetween: Dp = 5.dp,
     travelDistance: Dp = 10.dp
 ) {
+
     val circles = listOf(
         remember { Animatable(initialValue = 0f) },
         remember { Animatable(initialValue = 0f) },
         remember { Animatable(initialValue = 0f) }
     )
+    val circleValues = circles.map { it.value }
+    val distance = with(LocalDensity.current) { travelDistance.toPx() }
 
     circles.forEachIndexed { index, animatable ->
         LaunchedEffect(key1 = animatable) {
@@ -360,10 +317,6 @@ fun LoadingAnimation(
             )
         }
     }
-
-    val circleValues = circles.map { it.value }
-    val distance = with(LocalDensity.current) { travelDistance.toPx() }
-
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(spaceBetween)
@@ -382,5 +335,4 @@ fun LoadingAnimation(
             )
         }
     }
-
 }

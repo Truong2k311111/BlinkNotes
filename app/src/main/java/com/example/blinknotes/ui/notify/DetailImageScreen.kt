@@ -36,7 +36,6 @@ fun DetailImageScreen(
     var offsetY by remember { mutableStateOf(0f) }
     val coroutineScope = rememberCoroutineScope()
     var gestureJob by remember { mutableStateOf<Job?>(null) }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -46,8 +45,6 @@ fun DetailImageScreen(
                     scale = (scale * zoom).coerceIn(1f, 5f)
                     offsetX += pan.x
                     offsetY += pan.y
-
-                    // Cancel previous job and start a new one to reset after a short delay
                     gestureJob?.cancel()
                     gestureJob = coroutineScope.launch {
                         delay(200)

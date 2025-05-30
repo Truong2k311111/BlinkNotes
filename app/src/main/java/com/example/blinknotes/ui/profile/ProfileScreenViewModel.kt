@@ -1,6 +1,5 @@
 package com.example.blinknotes.ui.profile
 
-import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
@@ -11,22 +10,11 @@ import com.example.blinknotes.ui.home.RecentPost
 import com.example.blinknotes.ui.home.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldPath
-import com.google.firebase.firestore.FirebaseFirestore
-import androidx.core.net.toUri
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlin.text.get
 
-//
-//data class Post(
-//    val postId: String,
-//    val userId: String,
-//    val imageUrl: String,
-//    val likes: Int,
-//    val userProfileImage: String,
-//    val username: String
-//)
 data class PostWithUser(
     val post: Post,
     val user: User?
@@ -104,7 +92,7 @@ class ProfileScreenViewModel : ViewModel() {
 
     private fun loadBlockedUsers(userIds: List<String>) {
         if (userIds.isEmpty()) {
-            _blockedUsers.value = emptyList() // Handle empty case
+            _blockedUsers.value = emptyList()
             return
         }
 
@@ -129,9 +117,6 @@ class ProfileScreenViewModel : ViewModel() {
     }
     fun unblockUser(userId: String) {
         try {
-            Log.d("ProfileScreenViewModel", "Attempting to unblock user with ID: $userId")
-
-            // Check if the userId exists in the blockedUsers list
             val userToUnblock = blockedUsers.value.find { it.userId == userId }
             if (userToUnblock != null) {
                 // Remove the user from the blocked list in the database
@@ -139,8 +124,6 @@ class ProfileScreenViewModel : ViewModel() {
                     .document(currentUser?.uid ?: "")
                     .update("blockedUsers", FieldValue.arrayRemove(userId))
                     .addOnSuccessListener {
-                        Log.d("ProfileScreenViewModel", "Successfully unblocked user: $userId")
-                        // Update the local state
                         _blockedUsers.value = _blockedUsers.value.filter { it.userId != userId }
                     }
                     .addOnFailureListener { e ->
@@ -171,7 +154,7 @@ class ProfileScreenViewModel : ViewModel() {
         if (updates.isNotEmpty()) {
             db.collection("users").document(userId).update(updates)
                 .addOnSuccessListener {
-                    fetchUser(userId) // Refresh the updated user's data
+                    fetchUser(userId)
                 }
                 .addOnFailureListener { e ->
                     Log.e("ProfileScreenViewModel", "Error updating social links: ${e.message}")
@@ -237,36 +220,6 @@ class ProfileScreenViewModel : ViewModel() {
                 Log.e("ProfileScreen", "Error updating profile: ${e.message}")
             }
     }
-
-    fun getFollowCounts(userId: String, callback: (Int, Int) -> Unit) {
-        // Lấy số người đang follow
-        db.collection("users")
-            .document(userId)
-            .collection("following")
-            .get()
-            .addOnSuccessListener { followingSnapshot ->
-                val followingCount = followingSnapshot.size()
-
-                // Lấy số người follow
-                db.collection("users")
-                    .document(userId)
-                    .collection("followers")
-                    .get()
-                    .addOnSuccessListener { followersSnapshot ->
-                        val followersCount = followersSnapshot.size()
-                        callback(followingCount, followersCount)
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e("ProfileScreen", "Error getting followers count: ${e.message}")
-                        callback(followingCount, 0)
-                    }
-            }
-            .addOnFailureListener { e ->
-                Log.e("ProfileScreen", "Error getting following count: ${e.message}")
-                callback(0, 0)
-            }
-    }
-
     fun updateCoverImage(userId: String, coverImageUrl: String, onSuccess: () -> Unit = {}) {
         db.collection("users")
             .document(userId)
@@ -306,14 +259,12 @@ class ProfileScreenViewModel : ViewModel() {
                         null
                     }
                 }
-
                 val shuffledPosts = postsList.shuffled()
                 val filteredPosts = if (lastPost != null) {
                     shuffledPosts.filter { it.id != lastPost.id }
                 } else {
                     shuffledPosts
                 }
-
                 callback(filteredPosts.take(10))
             }
             .addOnFailureListener { e ->
@@ -330,26 +281,23 @@ class ProfileScreenViewModel : ViewModel() {
             .get()
             .addOnSuccessListener { likesSnapshot ->
                 val likedPostIds = likesSnapshot.documents.mapNotNull { it.getString("postId") }
-                    .filter { it.isNotBlank() } // ✅ lọc bỏ ID rỗng
+                    .filter { it.isNotBlank() }
 
                 if (likedPostIds.isEmpty()) {
                     callback(emptyList())
                     return@addOnSuccessListener
                 }
-
                 db.collection("posts")
                     .whereIn(FieldPath.documentId(), likedPostIds)
                     .get()
                     .addOnSuccessListener { postsSnapshot ->
                         val postsList = mutableListOf<Post>()
                         val userIdsSet = mutableSetOf<String>()
-
-                        // Collect user IDs from posts (either userId or userIdCmt)
                         for (doc in postsSnapshot.documents) {
                             try {
                                 val id = doc.id
-                                val userId = doc.getString("userId") ?: ""  // User who created the post
-                                val userIdCmt = doc.getString("userIdCmt") ?: "" // User who commented on the post
+                                val userId = doc.getString("userId") ?: ""
+                                val userIdCmt = doc.getString("userIdCmt") ?: ""
                                 val imageUrls = doc.get("imageUrls") as? List<String> ?: emptyList()
                                 val firstImageUrl = imageUrls.firstOrNull() ?: ""
                                 val caption = doc.getString("caption") ?: ""
@@ -359,23 +307,19 @@ class ProfileScreenViewModel : ViewModel() {
                                 val commentsCount = doc.getLong("commentsCount")?.toInt() ?: 0
                                 val visibility = doc.getString("visibility") ?: "public"
                                 val tags = doc.get("tags") as? List<String> ?: emptyList()
-
                                 postsList.add(
                                     Post(
                                         id, userId, userIdCmt, imageUrls, firstImageUrl, caption,
                                         content, createdAt, likesCount, commentsCount, visibility, tags
                                     )
                                 )
-                                // Collect the unique user IDs (post creator and comment creator)
                                 if (userId.isNotBlank()) userIdsSet.add(userId)
                                 if (userIdCmt.isNotBlank()) userIdsSet.add(userIdCmt)
                             } catch (e: Exception) {
                                 Log.e("PostLoad", "Error parsing post: ${e.message}")
                             }
                         }
-
                         if (userIdsSet.isEmpty()) {
-                            // No users to load
                             val result = postsList.map { PostWithUser(it, null) }
                             callback(result)
                             return@addOnSuccessListener
@@ -384,14 +328,10 @@ class ProfileScreenViewModel : ViewModel() {
                         val userMap = mutableMapOf<String, User?>()
                         val userFetchCount = userIdsSet.size
                         var usersFetched = 0
-
-                        // Fetch users for each userId in userIdsSet
                         userIdsSet.forEach { id ->
                             getUser(id) { user ->
                                 userMap[id] = user
                                 usersFetched++
-
-                                // Once all users are fetched, return the result
                                 if (usersFetched == userFetchCount) {
                                     val result = postsList.map { post ->
                                         val user = userMap[post.userId] ?: userMap[post.userIdCmt]
@@ -410,41 +350,6 @@ class ProfileScreenViewModel : ViewModel() {
             .addOnFailureListener { e ->
                 Log.e("PostLoad", "Error getting likes: ${e.message}")
                 callback(emptyList())
-            }
-    }
-
-    fun loadFollowers(userId: String) {
-        db.collection("users")
-            .whereArrayContains("following", userId)
-            .get()
-            .addOnSuccessListener { result ->
-                val followersList = result.documents.mapNotNull { doc ->
-                    try {
-                        User(
-                            userId = doc.id,
-                            username = doc.getString("username") ?: "",
-                            email = doc.getString("email") ?: "",
-                            profileImage = doc.getString("profileImage") ?: "",
-                            coverImage = doc.getString("coverImage") ?: "",
-                            blinkNotesId = doc.getString("blinkNotesId") ?: "",
-                            bio = doc.getString("bio") ?: "",
-                            followers = doc.get("followers") as? List<String> ?: emptyList(),
-                            following = doc.get("following") as? List<String> ?: emptyList(),
-                            createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
-                            followersCount = (doc.getLong("followersCount") ?: 0).toInt(),
-                            followingCount = (doc.getLong("followingCount") ?: 0).toInt(),
-                            recentPost = doc.get("recentPost") as? List<RecentPost> ?: emptyList()
-                        )
-                    } catch (e: Exception) {
-                        Log.e("ProfileScreenViewModel", "Error parsing follower: ${e.message}")
-                        null
-                    }
-                }
-                _followers.clear()
-                _followers.addAll(followersList)
-            }
-            .addOnFailureListener { e ->
-                Log.e("ProfileScreenViewModel", "Error loading followers: ${e.message}")
             }
     }
 

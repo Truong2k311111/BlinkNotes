@@ -1,14 +1,26 @@
 package com.example.blinknotes.ui.Auth
 
 import android.app.Activity
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -33,7 +45,6 @@ fun PhoneAuthScreen(authViewModel: AuthViewModel, navController: NavController, 
     var errorMessage by remember { mutableStateOf("") }
     val activity = LocalContext.current as Activity
 
-    // Function to format phone number
     fun formatPhoneNumber(number: String): String {
         return if (number.isNotEmpty()) "+84${number.trimStart('0')}" else ""
     }
@@ -45,29 +56,23 @@ fun PhoneAuthScreen(authViewModel: AuthViewModel, navController: NavController, 
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(32.dp))
-        
         Text(
             text = "Xác thực số điện thoại",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
-        
         Spacer(modifier = Modifier.height(8.dp))
-        
         Text(
             text = "Vui lòng nhập số điện thoại của bạn để tiếp tục",
             fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        
         Spacer(modifier = Modifier.height(32.dp))
-
         if (!isOtpSent) {
             OutlinedTextField(
                 value = phoneNumber,
                 onValueChange = { 
-                    // Only allow numbers
                     if (it.all { char -> char.isDigit() }) {
                         phoneNumber = it
                     }
@@ -82,9 +87,7 @@ fun PhoneAuthScreen(authViewModel: AuthViewModel, navController: NavController, 
                 singleLine = true,
                 prefix = { Text("+84") }
             )
-
             Spacer(modifier = Modifier.height(24.dp))
-
             Button(
                 onClick = {
                     val formattedNumber = formatPhoneNumber(phoneNumber)
@@ -113,9 +116,7 @@ fun PhoneAuthScreen(authViewModel: AuthViewModel, navController: NavController, 
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true
             )
-
             Spacer(modifier = Modifier.height(24.dp))
-
             Button(
                 onClick = {
                     authViewModel.verifyOtp(otp) { success, message ->
@@ -146,7 +147,6 @@ fun PhoneAuthScreen(authViewModel: AuthViewModel, navController: NavController, 
                 Text("Xác nhận mã OTP", fontSize = 16.sp)
             }
         }
-
         if (errorMessage.isNotEmpty()) {
             Spacer(modifier = Modifier.height(16.dp))
             Text(

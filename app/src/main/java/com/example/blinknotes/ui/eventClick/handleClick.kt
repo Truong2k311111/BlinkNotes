@@ -7,24 +7,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 
-    @Composable
-    fun handleClick(): (CoroutineScope, suspend () -> Unit) -> Unit {
-    val isHandlingClick = remember { mutableStateOf(false) }
-
-    return { coroutineScope: CoroutineScope, action: suspend () -> Unit ->
-        if (!isHandlingClick.value) {
-            coroutineScope.launch {
-                isHandlingClick.value = true
-                action()
-                isHandlingClick.value = false
-            }
-        }
-    }
-}
 @Composable
-fun handleClickLogin(): (CoroutineScope, suspend () -> Unit) -> Unit {
+fun handleClick(): (CoroutineScope, suspend () -> Unit) -> Unit {
     val isHandlingClick = remember { mutableStateOf(false) }
-
     return { coroutineScope: CoroutineScope, action: suspend () -> Unit ->
         if (!isHandlingClick.value) {
             coroutineScope.launch {

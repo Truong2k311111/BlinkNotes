@@ -9,16 +9,20 @@ data class SystemNotification(
     val type: NotificationType = NotificationType.OTHER,
     val createdAt: Long = Date().time,
     val isRead: Boolean = false,
-
-
+    val reporterId: String = "",
+    val reporterName: String = "",
+    val reporterImage: String = "",
+    val reportedId: String = "",
+    val reportedName: String = "",
+    val reportedImage: String = "",
+    val reportReason: String = ""
 )
 
 enum class NotificationType {
-    USER_BLOCKED,    // Thông báo chặn người dùng
-    POST_REPORTED,   // Thông báo bài viết bị báo cáo
-    SYSTEM_UPDATE,   // Thông báo cập nhật hệ thống
-    MAINTENANCE,     // Thông báo bảo trì
-    OTHER      ,
+    USER_BLOCKED,
+    POST_REPORTED,
+    SYSTEM_UPDATE,
+    MAINTENANCE,
+    OTHER,
     USER_REPORTED
-
 } 

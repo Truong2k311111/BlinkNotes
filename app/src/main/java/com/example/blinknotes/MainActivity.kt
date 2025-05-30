@@ -13,10 +13,6 @@ import androidx.navigation.compose.rememberNavController
 import com.example.blinknotes.navigation.RootNavigationGraph
 import com.example.blinknotes.ui.theme.BlinkNotesTheme
 
-import androidx.activity.viewModels
-
-import com.example.blinknotes.ui.notify.NotifyViewModel
-
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -32,37 +32,11 @@ data class Feed(
     val numBerHeart: Int? = 0,
     val userName: String? = null,
 )
-// class HomeScreenViewModelFactory : ViewModelProvider.Factory {
-//         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-//             return if (modelClass.isAssignableFrom(HomeScreenViewModel::class.java)) {
-//                 HomeScreenViewModel() as T
-//             } else {
-//                 throw IllegalArgumentException("ViewModel Not Found")
-//             }
-//         }
-// }
+
 class HomeScreenViewModel : ViewModel() {
     private val viewModelState = MutableStateFlow(HomeScreenViewModelData())
     val uiState: StateFlow<HomeScreenViewModelData> = viewModelState
 
-
-//    private val exploreScreenViewModel = ExploreScreenViewModel()
-//
-//    val posts = exploreScreenViewModel.posts
-//
-//    init {
-//        exploreScreenViewModel.getAllPosts() // Lấy danh sách bài viết ngay khi ViewModel được tạo
-//    }
-
-//        .onStart {
-//            loadImages()
-//            Log.e("aaa","onStart")
-//        }
-//        .stateIn(
-//            viewModelScope,
-//            SharingStarted.Eagerly,
-//            viewModelState.value
-//        )
     companion object {
         private const val PAGE_SIZE = 10
         private const val LOAD_DELAY_MS = 2000L

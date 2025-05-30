@@ -1,50 +1,31 @@
 package com.example.blinknotes.ui.notify
 
 import android.content.ContentValues
+import android.content.Context
+import android.net.Uri
+import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.blinknotes.ui.home.User
+import com.example.blinknotes.ui.notify.activity.ActivityNotification
+import com.example.blinknotes.ui.notify.notificationSysTem.NotificationType
+import com.example.blinknotes.ui.notify.notificationSysTem.SystemNotification
+import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
+import com.google.firebase.messaging.messaging
+import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import com.google.firebase.Timestamp
-import com.google.firebase.messaging.FirebaseMessaging
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import org.json.JSONObject
-import java.io.IOException
-import com.google.gson.Gson
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-
-import android.content.Context
-import android.net.Uri
-import android.provider.MediaStore
-import android.widget.Toast
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import com.example.blinknotes.ui.notify.notificationSysTem.NotificationType
-import com.example.blinknotes.ui.notify.notificationSysTem.SystemNotification
-import com.google.auth.oauth2.GoogleCredentials
-import com.google.firebase.Firebase
-import com.google.firebase.firestore.Query
-import com.google.firebase.messaging.messaging
 import kotlinx.coroutines.tasks.await
-import java.util.Collections
-import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.create
-import com.google.firebase.storage.FirebaseStorage
-import kotlinx.coroutines.Dispatchers
 import java.util.UUID
-import kotlin.collections.mutableListOf
-import kotlin.text.set
 
 
 data class Message(
@@ -60,6 +41,21 @@ data class Message(
 class NotifyViewModel : ViewModel() {
 
     private val firestore = FirebaseFirestore.getInstance()
+
+    private val _systemNotifications = MutableStateFlow<List<SystemNotification>>(emptyList())
+    val systemNotifications: StateFlow<List<SystemNotification>> = _systemNotifications
+
+    private val _unreadSystemNotifications = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val unreadSystemNotifications: StateFlow<Map<String, Boolean>> = _unreadSystemNotifications
+
+    private val _unreadActivityNotifications = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val unreadActivityNotifications: StateFlow<Map<String, Boolean>> = _unreadActivityNotifications
+
+    private val _latestSystemNotification = MutableStateFlow<SystemNotification?>(null)
+    val latestSystemNotification: StateFlow<SystemNotification?> = _latestSystemNotification
+
+    private val _latestActivityNotification = MutableStateFlow<ActivityNotification?>(null)
+    val latestActivityNotification: StateFlow<ActivityNotification?> = _latestActivityNotification
 
     private val _notifyItems = MutableStateFlow<List<User>>(emptyList())
     val notifyItems: StateFlow<List<User>> = _notifyItems
@@ -97,14 +93,6 @@ class NotifyViewModel : ViewModel() {
     private val _lastMessagesContentSendImage = MutableStateFlow<Map<String, String>>(emptyMap())
     val lastMessagesContentSendImage: StateFlow<Map<String, String>> = _lastMessagesContentSendImage
 
-
-    var state by mutableStateOf(ChatState())
-        private set
-
-
-
-    private val db = FirebaseFirestore.getInstance()
-    private val auth = FirebaseAuth.getInstance()
     private val storageRef = FirebaseStorage.getInstance().reference
 
 
@@ -113,6 +101,12 @@ class NotifyViewModel : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
+
+    private val _loadingMessages = MutableStateFlow(true)
+    val loadingMessages: StateFlow<Boolean> = _loadingMessages
+    private val _postPreviews = MutableStateFlow<Map<Long, Map<String, Any>>>(emptyMap())
+    val postPreviews: StateFlow<Map<Long, Map<String, Any>>> = _postPreviews
+
 
     fun updateSelectedImages(uris: List<Uri>) {
         _selectedImages.value = uris
@@ -126,9 +120,6 @@ class NotifyViewModel : ViewModel() {
         .addConverterFactory(MoshiConverterFactory.create())
         .build()
         .create()
-
-    private val storage = FirebaseStorage.getInstance()
-
     init {
         viewModelScope.launch {
             Firebase.messaging.subscribeToTopic("chat").await()
@@ -139,6 +130,13 @@ class NotifyViewModel : ViewModel() {
         fetchCurrentUser()
         syncActiveStatusFromFirestore()
         fetchUsersFriend()
+    }
+    init {
+        fetchSystemNotifications()
+        fetchUnreadSystemNotifications()
+        fetchUnreadActivityNotifications()
+        fetchLatestSystemNotification()
+        fetchLatestActivityNotification()
     }
 
     fun createImageUri(context: Context): Uri? {
@@ -183,10 +181,9 @@ class NotifyViewModel : ViewModel() {
             }
         }
     }
-
     private fun fetchCurrentUser() {
         val currentUserId =
-            FirebaseAuth.getInstance().currentUser?.uid // Replace with actual logic to get the logged-in user's ID
+            FirebaseAuth.getInstance().currentUser?.uid
         firestore.collection("users")
             .document(currentUserId.toString())
             .get()
@@ -195,13 +192,10 @@ class NotifyViewModel : ViewModel() {
                 _currentUser.value = user
             }
             .addOnFailureListener {
-                // Handle failure
             }
     }
-
     private fun syncActiveStatusFromFirestore() {
         val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
-
         firestore.collection("users")
             .document(currentUserId)
             .get()
@@ -210,7 +204,6 @@ class NotifyViewModel : ViewModel() {
                 _isActive.value = onlineStatus
             }
             .addOnFailureListener {
-                // Optional: Log error
             }
     }
     fun fetchLastMessageForUser(userId: String) {
@@ -269,7 +262,7 @@ class NotifyViewModel : ViewModel() {
                 }
                 batch.commit().addOnSuccessListener {
                     Log.d("MARK_AS_READ", "Messages marked as read for user $senderId")
-                    fetchUnreadMessagesCountForAllUsers() // Refresh unread count
+                    fetchUnreadMessagesCountForAllUsers()
                 }
             }
             .addOnFailureListener { exception ->
@@ -284,13 +277,13 @@ class NotifyViewModel : ViewModel() {
             .addOnSuccessListener { result ->
                 val userList = result.mapNotNull { document ->
                     if (document.id == currentUserId) {
-                        null // Bỏ qua user hiện tại
+                        null
                     } else {
                         val userId = document.id
                         val followingRaw = document.get("following") as? List<*> ?: emptyList<Any>()
                         val following = followingRaw.filterIsInstance<String>()
-                        val isFriend = following.contains(currentUserId) // Kiểm tra nếu là bạn bè
-                        if (isFriend) { // Chỉ thêm vào danh sách nếu là bạn bè
+                        val isFriend = following.contains(currentUserId)
+                        if (isFriend) {
                             User(
                                 userId = document.id,
                                 username = document.getString("username") ?: "",
@@ -311,21 +304,20 @@ class NotifyViewModel : ViewModel() {
                     }
                 }
                 _usersFriend.value = userList
-                _loading.value = false // Hide loading indicator after refresh
+                _loading.value = false
             }
             .addOnFailureListener {
-                _loading.value = false // Hide loading indicator on failure
+                _loading.value = false
             }
     }
     fun fetchUsers() {
-        //    _loading.value = true
         val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
         firestore.collection("users")
             .get()
             .addOnSuccessListener { result ->
                 val userList = result.mapNotNull { document ->
                     if (document.id == currentUserId) {
-                        null // Bỏ qua user hiện tại
+                        null
                     } else {
                         val userId = document.id
                         val followingRaw = document.get("following") as? List<*> ?: emptyList<Any>()
@@ -349,11 +341,10 @@ class NotifyViewModel : ViewModel() {
                     }
                 }
                 _users.value = userList
-                _loading.value = false // Hide loading indicator after refresh
-                // Check if the current user is a friend
+                _loading.value = false
             }
             .addOnFailureListener {
-                _loading.value = false // Hide loading indicator on failure
+                _loading.value = false
             }
     }
 
@@ -445,7 +436,6 @@ class NotifyViewModel : ViewModel() {
                                 .add(messageData)
                                 .addOnSuccessListener {
                                     Log.d("SEND_MESSAGE", "Message sent successfully")
-                                    // Send FCM notification
                                     val messageDto = SendMessageDto(
                                         to = receiverToken,
                                         notification = NotificationBody(
@@ -478,8 +468,6 @@ class NotifyViewModel : ViewModel() {
                 Log.e("SEND_MESSAGE", "Failed to get receiver FCM token", exception)
             }
     }
-    private val _loadingMessages = MutableStateFlow(true)
-    val loadingMessages: StateFlow<Boolean> = _loadingMessages
 
     fun listenForMessages(currentUserId: String, otherUserId: String) {
         _loadingMessages.value = true
@@ -493,23 +481,37 @@ class NotifyViewModel : ViewModel() {
                     return@addSnapshotListener
                 }
 
+                val postPreviewMap = mutableMapOf<Long, Map<String, Any>>()
                 val messages = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Message::class.java)?.copy(
+                    val msg = doc.toObject(Message::class.java)?.copy(
                         imageUrls = doc.get("imageUrls") as? List<String> ?: emptyList()
                     )
+                    if (msg != null && msg.content == "[shared_post]") {
+                        val postPreview = doc.get("postPreview") as? Map<String, Any>
+                        if (postPreview != null) {
+                            postPreviewMap[msg.timestamp] = postPreview
+                        }
+                    }
+                    msg
                 } ?: emptyList()
 
                 _messages.value = messages
+                _postPreviews.value = postPreviewMap
                 _loadingMessages.value = false
-
             }
     }
+
     fun createSystemNotification(
         type: NotificationType,
         title: String,
         content: String,
-        userId: String,
-        reportedBy: String = ""
+        reporterId: String = "",
+        reporterName: String = "",
+        reporterImage: String = "",
+        reportedId: String = "",
+        reportedName: String = "",
+        reportedImage: String = "",
+        reportReason: String = ""
     ) {
         val notification = SystemNotification(
             id = UUID.randomUUID().toString(),
@@ -517,13 +519,152 @@ class NotifyViewModel : ViewModel() {
             content = content,
             type = type,
             createdAt = System.currentTimeMillis(),
-            isRead = false
+            isRead = false,
+            reporterId = reporterId,
+            reporterName = reporterName,
+            reporterImage = reporterImage,
+            reportedId = reportedId,
+            reportedName = reportedName,
+            reportedImage = reportedImage,
+            reportReason = reportReason
         )
 
-        val db = FirebaseFirestore.getInstance()
-        db.collection("system_notifications")
+        firestore.collection("system_notifications")
             .document(notification.id)
             .set(notification)
+            .addOnSuccessListener {
+                _latestSystemNotification.value = notification
+            }
+            .addOnFailureListener { e ->
+                Log.e("SystemNotifications", "Error creating notification", e)
+            }
+    }
+    private fun fetchSystemNotifications() {
+        firestore.collection("system_notifications")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("SystemNotifications", "Listen failed", error)
+                    return@addSnapshotListener
+                }
+
+                val notifications = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(SystemNotification::class.java)
+                } ?: emptyList()
+
+                _systemNotifications.value = notifications
+            }
+    }
+    private fun fetchUnreadSystemNotifications() {
+        firestore.collection("system_notifications")
+            .whereEqualTo("isRead", false)
+            .get()
+            .addOnSuccessListener { result ->
+                val unreadMap = result.documents.associate { it.id to false }
+                _unreadSystemNotifications.value = unreadMap
+            }
+    }
+    private fun fetchLatestSystemNotification() {
+        firestore.collection("system_notifications")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .addOnSuccessListener { result ->
+                _latestSystemNotification.value = result.documents.firstOrNull()?.toObject(SystemNotification::class.java)
+            }
+    }
+    private fun fetchUnreadActivityNotifications() {
+        firestore.collection("activity_notifications")
+            .whereEqualTo("isRead", false)
+            .get()
+            .addOnSuccessListener { result ->
+                val unreadMap = result.documents.associate { it.id to false }
+                _unreadActivityNotifications.value = unreadMap
+            }
+    }
+    private fun fetchLatestActivityNotification() {
+        firestore.collection("activity_notifications")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(1)
+            .get()
+            .addOnSuccessListener { result ->
+                _latestActivityNotification.value = result.documents.firstOrNull()?.toObject(ActivityNotification::class.java)
+            }
+    }
+    fun markSystemNotificationAsRead(notificationId: String) {
+        firestore.collection("system_notifications")
+            .document(notificationId)
+            .update("isRead", true)
+            .addOnSuccessListener {
+                _unreadSystemNotifications.value = _unreadSystemNotifications.value.toMutableMap().apply {
+                    this[notificationId] = true
+                }
+            }
+    }
+    fun markActivityNotificationAsRead(notificationId: String) {
+        firestore.collection("activity_notifications").document(notificationId)
+            .update("isRead", true)
+            .addOnSuccessListener {
+                _unreadActivityNotifications.value = _unreadActivityNotifications.value.toMutableMap().apply {
+                    this[notificationId] = true
+                }
+            }
+    }
+
+    fun reportUser(userId: String, reason: String) {
+        val db = FirebaseFirestore.getInstance()
+        val currentUser = FirebaseAuth.getInstance().currentUser
+
+        if (currentUser != null) {
+            db.collection("users").document(currentUser.uid)
+                .get()
+                .addOnSuccessListener { reporterDoc ->
+                    val reporterName = reporterDoc.getString("username") ?: ""
+                    val reporterImage = reporterDoc.getString("profileImage") ?: ""
+                    db.collection("users").document(userId)
+                        .get()
+                        .addOnSuccessListener { reportedUserDoc ->
+                            val reportedName = reportedUserDoc.getString("username") ?: ""
+                            val reportedImage = reportedUserDoc.getString("profileImage") ?: ""
+                            createSystemNotification(
+                                type = NotificationType.USER_REPORTED,
+                                title = "Báo cáo người dùng",
+                                content = "Người dùng bị báo cáo với lý do: $reason",
+                                reporterId = currentUser.uid,
+                                reporterName = reporterName,
+                                reporterImage = reporterImage,
+                                reportedId = userId,
+                                reportedName = reportedName,
+                                reportedImage = reportedImage,
+                                reportReason = reason
+                            )
+                            db.collection("users")
+                                .whereEqualTo("isAdmin", true)
+                                .get()
+                                .addOnSuccessListener { adminDocs ->
+                                    adminDocs.documents.forEach { adminDoc ->
+                                        val adminToken = adminDoc.getString("fcmToken")
+                                        if (!adminToken.isNullOrBlank()) {
+                                            val messageDto = SendMessageDto(
+                                                to = adminToken,
+                                                notification = NotificationBody(
+                                                    title = "Báo cáo người dùng mới",
+                                                    body = "$reporterName đã báo cáo người dùng $reportedName"
+                                                )
+                                            )
+                                            viewModelScope.launch {
+                                                try {
+                                                    api.sendMessage(messageDto)
+                                                    Log.d("REPORT_NOTIFICATION", "FCM notification sent to admin successfully")
+                                                } catch (e: Exception) {
+                                                    Log.e("REPORT_NOTIFICATION", "Failed to send FCM notification to admin", e)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                        }
+                }
+        }
     }
 }
-

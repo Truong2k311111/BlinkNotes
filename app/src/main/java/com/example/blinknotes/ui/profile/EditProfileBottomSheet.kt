@@ -113,7 +113,9 @@ fun EditProfileBottomSheet(
                 )
                 OutlinedTextField(
                     value = blinkNotesId,
-                    onValueChange = { blinkNotesId = it },
+                    onValueChange = {
+                        val input = it.replace("[^A-Za-z0-9_]".toRegex(), "")
+                        blinkNotesId = "@" + input.removePrefix("@") },
                     modifier = Modifier.fillMaxWidth(),
                     textStyle = TextStyle(fontSize = 16.sp),
                     shape = RoundedCornerShape(12.dp),

@@ -10,8 +10,6 @@ sealed class Screens(val route: String) {
     object SearchScreen : Screens("search_screen?query={query}")
     object ProfileScreen: Screens("profile_screen")
     object NotifyScreen: Screens("notify_screen")
-    object PlashScreen: Screens("plash_screen")
-    object ShowBottomBar: Screens("main_screen")
     object SettingScreenProfile: Screens("setting_screen_profile")
     object EditProfileImageScreen: Screens("edit_profile_image_screen/{currentImageUrl}/{userId}")
     object PhoneAuthScreen: Screens("phone_auth_screen/{email}/{userName}/{password}/{confirmPassword}"){
@@ -30,12 +28,10 @@ sealed class Screens(val route: String) {
     object StatusScreen: Screens("status_screen")
     object LinkScreen: Screens("linkScreen")
     object PrivacySettingsScreen: Screens("privacySettingsScreen")
-
-    // Admin Screens
     object AdminDashboard: Screens("admin_dashboard")
     object AdminUserManagement: Screens("admin_users")
     object AdminPostManagement: Screens("admin_posts")
     object AdminReportManagement: Screens("admin_reports")
     object SystemNotification : Screens("system_notification")
-
+    object ActivityNotificationScreen : Screens("activity_notification_screen")
 }

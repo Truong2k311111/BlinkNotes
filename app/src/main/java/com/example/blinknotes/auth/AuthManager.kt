@@ -20,59 +20,22 @@ object AuthManager {
             if (currentUser == null) {
                 return@withContext false
             }
-
-            // Kiểm tra trong SharedPreferences trước
             val prefs = context.getSharedPreferences(ADMIN_PREFS, Context.MODE_PRIVATE)
             val cachedAdminStatus = prefs.getBoolean(IS_ADMIN_KEY, false)
             if (cachedAdminStatus) {
                 return@withContext true
             }
-
-            // Nếu không có trong cache, kiểm tra trong Firestore
             val userDoc = db.collection("users").document(currentUser.uid).get().await()
             val isAdmin = userDoc.getBoolean("isAdmin") ?: false
-
-            // Lưu kết quả vào cache
             prefs.edit().putBoolean(IS_ADMIN_KEY, isAdmin).apply()
-
             return@withContext isAdmin
         } catch (e: Exception) {
             e.printStackTrace()
             return@withContext false
         }
     }
-
     fun clearAdminStatus(context: Context) {
         val prefs = context.getSharedPreferences(ADMIN_PREFS, Context.MODE_PRIVATE)
         prefs.edit().remove(IS_ADMIN_KEY).apply()
-    }
-
-    suspend fun refreshAdminStatus(context: Context): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val currentUser = auth.currentUser
-            if (currentUser == null) {
-                return@withContext false
-            }
-
-            val userDoc = db.collection("users").document(currentUser.uid).get().await()
-            val isAdmin = userDoc.getBoolean("isAdmin") ?: false
-
-            // Cập nhật cache
-            val prefs = context.getSharedPreferences(ADMIN_PREFS, Context.MODE_PRIVATE)
-            prefs.edit().putBoolean(IS_ADMIN_KEY, isAdmin).apply()
-
-            return@withContext isAdmin
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
-        }
-    }
-
-    fun isUserLoggedIn(): Boolean {
-        return auth.currentUser != null
-    }
-
-    fun getCurrentUserId(): String? {
-        return auth.currentUser?.uid
     }
 } 
