@@ -2,7 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.google.gms.google.services)
-
+    id("com.google.devtools.ksp")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -147,6 +148,57 @@ dependencies {
     implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.retrofit2:converter-moshi:2.9.0")
 
+    // Dagger Hilt
+    implementation("com.google.dagger:hilt-android:2.48")
+    ksp("com.google.dagger:hilt-android-compiler:2.48")
+    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
 
+    // Retrofit
+    implementation ("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation ("com.squareup.retrofit2:converter-moshi:2.9.0")
+    implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation ("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation ("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Coil & Glide
+    implementation ("io.coil-kt:coil-compose:2.7.0")
+    implementation ("com.github.bumptech.glide:glide:4.15.1")
+    implementation ("com.github.bumptech.glide:okhttp3-integration:4.15.1")
+    implementation ("com.github.bumptech.glide:annotations:4.15.1")
+
+    // Google Services
+    implementation ("com.google.android.gms:play-services-auth:20.7.0")
+    implementation ("com.google.android.gms:play-services-safetynet:18.0.1")
+    implementation ("com.google.android.gms:play-services-fido")
+
+    // ML Kit
+    implementation ("com.google.mlkit:barcode-scanning:17.0.0")
+
+    // Accompanist
+    implementation ("com.google.accompanist:accompanist-pager:0.30.1")
+    implementation ("com.google.accompanist:accompanist-pager-indicators:0.30.1")
+    implementation ("com.google.accompanist:accompanist-permissions:0.19.0")
+
+    // Emoji
+    implementation ("com.vanniktech:emoji-google:0.15.0")
+    implementation ("com.vanniktech:emoji-ios:0.15.0")
+
+    // Other
+    implementation ("com.google.guava:guava:31.0.1-android")
+    implementation ("com.google.code.gson:gson:2.8.9")
+    implementation ("com.google.auth:google-auth-library-oauth2-http:1.35.0")
+    implementation ("io.grpc:grpc-core:1.62.2")
+    coreLibraryDesugaring ("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // Testing
+    testImplementation ("junit:junit:4.13.2")
+    androidTestImplementation ("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation ("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation ("androidx.compose.ui:ui-test-junit4")
+    debugImplementation ("androidx.compose.ui:ui-tooling")
+    debugImplementation ("androidx.compose.ui:ui-test-manifest")
+
+    implementation ("com.google.android.gms:play-services-location:21.0.1")
 
 }
+

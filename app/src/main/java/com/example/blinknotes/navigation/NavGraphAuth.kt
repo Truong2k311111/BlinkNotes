@@ -6,10 +6,10 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
-import com.example.blinknotes.ui.Auth.AuthViewModel
-import com.example.blinknotes.ui.Auth.LoginScreen
-import com.example.blinknotes.ui.Auth.PhoneAuthScreen
-import com.example.blinknotes.ui.Auth.RegisterScreen
+import com.example.blinknotes.presentation.ui.Screens.Auth.LoginScreen
+import com.example.blinknotes.presentation.ui.Screens.Auth.PhoneAuthScreen
+import com.example.blinknotes.presentation.ui.Screens.Auth.RegisterScreen
+import androidx.hilt.navigation.compose.hiltViewModel
 
 fun NavGraphBuilder.authNavGraph(navController: NavHostController) {
     navigation(
@@ -18,14 +18,12 @@ fun NavGraphBuilder.authNavGraph(navController: NavHostController) {
     ) {
         composable(Screens.LoginScreen.route) {
             LoginScreen(
-                authViewModel = AuthViewModel(),
                 navController = navController,
             )
         }
         composable(Screens.RegisterScreen.route) {
             RegisterScreen(
                 navController = navController,
-                authViewModel = AuthViewModel()
             )
         }
         composable (Screens.PhoneAuthScreen.route,
@@ -34,13 +32,11 @@ fun NavGraphBuilder.authNavGraph(navController: NavHostController) {
                 navArgument("userName") { type = NavType.StringType },
                 navArgument("password") { type = NavType.StringType },
                 navArgument("confirmPassword") { type = NavType.StringType }
-
             )
         ){ backStackEntry ->
-        PhoneAuthScreen(
+            PhoneAuthScreen(
                 navController = navController,
-                authViewModel = AuthViewModel(),
-            navBackStackEntry = backStackEntry
+                navBackStackEntry = backStackEntry
             )
         }
     }

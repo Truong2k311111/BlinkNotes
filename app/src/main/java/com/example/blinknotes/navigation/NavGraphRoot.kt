@@ -21,14 +21,15 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.example.blinknotes.ui.home.HomeScreenViewModel
+import navGraph
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun RootNavigationGraph(navController: NavHostController) {
-
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-val viewModel = HomeScreenViewModel()
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val userSignedIn = currentUser != null
 
     val homeRoutes = listOf(
         Screens.HomeScreen.route,
@@ -42,31 +43,34 @@ val viewModel = HomeScreenViewModel()
         NavigationItem(Icons.Filled.Notifications,Icons.Outlined.Notifications, Screens.NotifyScreen.route),
         NavigationItem(Icons.Filled.Person,Icons.Outlined.Person, Screens.ProfileScreen.route),
     )
+
     Scaffold(
         bottomBar = {
-                if (currentRoute in homeRoutes) {
-                    BottomNavigationBar(navController = navController, items = bottomNavigationItems)
-                }
-        }
-    ) { paddingValues ->
-
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues = paddingValues)) {
-                NavHost(
-                    navController = navController,
-                    route = Graph.ROOT,
-                    startDestination = Graph.HOME,
-
-                    ) {
-                    authNavGraph(navController)
-                    navGraph(navController, modifier = paddingValues, viewModel = viewModel)
-                }
-
+            if (currentRoute in homeRoutes) {
+                BottomNavigationBar(navController = navController, items = bottomNavigationItems)
             }
         }
+    ) { paddingValues ->
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues = paddingValues)) {
+            NavHost(
+                navController = navController,
+                route = Graph.ROOT,
+                startDestination = Graph.HOME,
+            ) {
+                authNavGraph(navController)
+                adminNavGraph(navController)
+                navGraph(
+                    navController, 
+                    modifier = paddingValues,
+                )
+            }
+        }
+    }
 }
 object Graph {
     const val ROOT = "root_graph"
     const val AUTHENTICATION = "auth_graph"
     const val HOME = "home_graph"
     const val DETAILS = "details_graph"
+    const val ADMIN = "admin_graph"
 }

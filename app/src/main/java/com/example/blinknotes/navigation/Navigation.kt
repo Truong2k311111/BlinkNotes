@@ -22,14 +22,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.wear.compose.material3.IconButton
 import com.example.blinknotes.R
-import com.example.blinknotes.ui.addPhoto.AddPhotoScreenViewModel
-import com.example.blinknotes.ui.profile.ProfileScreenViewModel
+import com.example.blinknotes.presentation.viewModel.AddPhotoScreenViewModel
+import com.example.blinknotes.presentation.viewModel.ProfileScreenViewModel
 
 data class NavigationItem(
     val icon: ImageVector,
@@ -38,7 +39,7 @@ data class NavigationItem(
 )
 
 @Composable
-fun BottomNavigationBar(navController: NavHostController, items: List<NavigationItem>, viewModel: AddPhotoScreenViewModel = viewModel()) {
+fun BottomNavigationBar(navController: NavHostController, items: List<NavigationItem>, viewModel: AddPhotoScreenViewModel = hiltViewModel()) {
     val viewModelProfile = viewModel<ProfileScreenViewModel>()
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     Box(
@@ -93,7 +94,7 @@ fun BottomNavigationBar(navController: NavHostController, items: List<Navigation
                                 if (
                                 item.route == Screens.ProfileScreen.route + "/userId"
                             ) {
-                                Screens.ProfileScreen.route + "/userId=${viewModelProfile.currentUserId}"
+                                Screens.ProfileScreen.route + "/userId=${viewModelProfile.loggedInUserId}"
                             } else {
                                 item.route
                             }

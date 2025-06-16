@@ -1,16 +1,9 @@
 package com.example.blinknotes.data.helper
 
 import android.util.Log
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.blinknotes.ui.detaill.Comment
-import com.example.blinknotes.ui.home.ExploreScreenViewModel
-import com.example.blinknotes.ui.home.Post
-import com.example.blinknotes.ui.home.User
-import com.google.android.gms.tasks.Tasks
+import com.example.blinknotes.domain.model.Post
+import com.example.blinknotes.domain.model.User
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.FieldValue
-import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.QuerySnapshot
 
 object FirestoreHelper {
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
